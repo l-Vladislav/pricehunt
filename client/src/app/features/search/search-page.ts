@@ -17,11 +17,13 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { Supplier, SuppliersApi } from "../../core/suppliers-api";
 import { toIsoDate } from "../../core/to-iso-date";
+import { AnimateMove } from "./animate-move";
 import { SearchStore } from "./search-store";
 
 @Component({
 	selector: "app-search-page",
 	imports: [
+		AnimateMove,
 		CurrencyPipe,
 		MatButtonModule,
 		MatCheckboxModule,

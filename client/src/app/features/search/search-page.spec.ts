@@ -5,6 +5,7 @@ import {
 	provideHttpClientTesting,
 	TestRequest,
 } from "@angular/common/http/testing";
+import { ErrorHandler } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonHarness } from "@angular/material/button/testing";
 import { MatCheckboxHarness } from "@angular/material/checkbox/testing";
@@ -266,6 +267,162 @@ describe("SearchPage", () => {
 		expect(after).toHaveLength(3);
 		expect(after[1]).toBe(first);
 		expect(after[2]).toBe(second);
+	});
+
+	describe("SC4: row animation", () => {
+		const rowHeight = 48;
+		const originalRect = Element.prototype.getBoundingClientRect;
+		let animated: { row: Element; keyframes: unknown; options: unknown }[];
+		let listTop: number;
+		let shifts: Map<Element, number>;
+
+		beforeEach(() => {
+			animated = [];
+			listTop = 300;
+			shifts = new Map();
+			Element.prototype.getBoundingClientRect = function (this: Element) {
+				if (this.matches("ul")) {
+					return new DOMRect(0, listTop);
+				}
+				if (!this.matches(".result-row")) {
+					return originalRect.call(this);
+				}
+				const siblings = [...this.parentElement!.children];
+				const top = listTop + siblings.indexOf(this) * rowHeight + (shifts.get(this) ?? 0);
+				return new DOMRect(0, top, 800, rowHeight);
+			};
+			Element.prototype.animate = function (this: Element, keyframes, options) {
+				animated.push({ row: this, keyframes, options });
+				return { cancel: () => shifts.delete(this) } as unknown as Animation;
+			};
+		});
+
+		afterEach(() => {
+			Element.prototype.getBoundingClientRect = originalRect;
+			Reflect.deleteProperty(Element.prototype, "animate");
+			vi.unstubAllGlobals();
+		});
+
+		async function startSearch() {
+			await openPage();
+			await fillForm();
+			const { id, push } = await submit();
+			await push(started(id));
+			return { id, push };
+		}
+
+		function moves(): [string, unknown][] {
+			return animated.map(({ row, keyframes }) => [
+				row.querySelector(".name")!.textContent.trim(),
+				keyframes,
+			]);
+		}
+
+		function slideFrom(offset: number) {
+			return [{ transform: `translateY(${offset}px)` }, { transform: "none" }];
+		}
+
+		it("SC4: only rows that move slide from their old position", async () => {
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 10), quote(id, "s2", 30));
+			expect(moves()).toEqual([]);
+
+			await push(quote(id, "s3", 20));
+
+			expect(moves()).toEqual([["Asked s2", slideFrom(-rowHeight)]]);
+			expect(animated[0].options).toEqual({ duration: 250, easing: "ease-out" });
+		});
+
+		it("SC4: each row slides by its own distance", async () => {
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 10), quote(id, "s2", 30));
+
+			await push(quote(id, "s3", 20), quote(id, "s4", 5));
+
+			expect(moves()).toEqual([
+				["Asked s1", slideFrom(-rowHeight)],
+				["Asked s2", slideFrom(-2 * rowHeight)],
+			]);
+		});
+
+		it("SC4: a row that moves again during its animation continues from where it is shown", async () => {
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 30));
+			await push(quote(id, "s2", 20));
+			expect(moves()).toEqual([["Asked s1", slideFrom(-rowHeight)]]);
+			const [{ row }] = animated;
+			animated = [];
+			shifts.set(row, -20);
+
+			await push(quote(id, "s3", 25));
+
+			expect(moves()).toEqual([["Asked s1", slideFrom(-rowHeight - 20)]]);
+			expect(shifts.has(row)).toBe(false);
+		});
+
+		it("SC4: an event that moves no row leaves a running animation alone", async () => {
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 30));
+			await push(quote(id, "s2", 20));
+			expect(moves()).toEqual([["Asked s1", slideFrom(-rowHeight)]]);
+			const [{ row }] = animated;
+			animated = [];
+			shifts.set(row, -20);
+
+			await push(failed(id, "s3"), quote(id, "s4", 40));
+
+			expect(moves()).toEqual([]);
+			expect(shifts.get(row)).toBe(-20);
+		});
+
+		it("SC4: scrolling the page between events does not count as a move", async () => {
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 10), quote(id, "s2", 30));
+			listTop = 50;
+
+			await push(quote(id, "s3", 20));
+
+			expect(moves()).toEqual([["Asked s2", slideFrom(-rowHeight)]]);
+		});
+
+		it("SC4: rows move without animation under prefers-reduced-motion", async () => {
+			vi.stubGlobal("matchMedia", (query: string) => ({
+				matches: query === "(prefers-reduced-motion: reduce)",
+				addListener: () => undefined,
+				removeListener: () => undefined,
+			}));
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 30));
+
+			await push(quote(id, "s2", 20));
+
+			expect(rows().map(([name]) => name)).toEqual(["Asked s2", "Asked s1"]);
+			expect(moves()).toEqual([]);
+		});
+
+		it("SC4: rows move without animation when Element.animate is missing", async () => {
+			Reflect.deleteProperty(Element.prototype, "animate");
+			const errors: unknown[] = [];
+			// Angular reports an error thrown after a render only to the ErrorHandler.
+			TestBed.inject(ErrorHandler).handleError = (error) => errors.push(error);
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 30));
+
+			await push(quote(id, "s2", 20));
+
+			expect(rows().map(([name]) => name)).toEqual(["Asked s2", "Asked s1"]);
+			expect(errors).toEqual([]);
+		});
+
+		it("SC4: a re-order that leaves a row at the same place on screen is not animated", async () => {
+			Element.prototype.getBoundingClientRect = () => new DOMRect();
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 30));
+
+			await push(quote(id, "s2", 20));
+
+			expect(moves()).toEqual([]);
+		});
 	});
 
 	it.each([

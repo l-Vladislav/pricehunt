@@ -38,6 +38,8 @@ ul {
 	height: var(--row-height);
 	padding: 0 16px;
 	border-bottom: 1px solid var(--mat-sys-outline-variant);
+	// Opaque, so the text of rows that cross while they move does not mix.
+	background-color: var(--mat-sys-surface);
 }
 
 .price,
