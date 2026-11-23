@@ -9,6 +9,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# A non-UTC zone, so code that treats a UTC time as local fails the tests here too.
+env:
+  TZ: Asia/Jerusalem
+
 jobs:
   server:
     runs-on: ubuntu-latest

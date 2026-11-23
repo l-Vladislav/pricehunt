@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PriceHunt.Api.Search;
 using PriceHunt.Api.Suppliers;
 
@@ -14,7 +15,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.Properties<SearchStatus>().HaveConversion<string>();
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
     }
+
+    // SQLite gives back DateTime with Kind = Unspecified. Every stored time is UTC, so mark it as such on read
+    // and the JSON gets a "Z". SpecifyKind, not ToUniversalTime(): that one would treat the value as local time.
+    private sealed class UtcDateTimeConverter() : ValueConverter<DateTime, DateTime>(
+        v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
