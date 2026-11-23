@@ -23,7 +23,7 @@ Task: `$ARGUMENTS` (if empty, take the first task in `docs/plan.md` that is not 
 8. **Review.** Run the `reviewer` subagent on the branch. Fix the real findings in separate commits, and explain the ones you dismiss.
 9. **Close.** Set the task to `[x]` in `docs/plan.md`. Add a row to `docs/ai-usage.md` (what the agent wrote, what changed after review).
    Leave the "What I did" column as `TODO(owner)` for the user to fill in. Propose the commit and wait for approval.
-10. **PR.** Ask the owner before pushing. After approval: `git push -u origin HEAD`, then `gh pr create --title "Txx: <summary>"` with a body that follows `.github/pull_request_template.md`
+10. **PR.** Ask the owner before pushing. After approval: `git push -u origin HEAD`, then `gh pr create --title "Txx: <summary> (<req IDs>)"` (it becomes the squash commit on `main`) with a body that follows `.github/pull_request_template.md`
     (reqs covered, tests → req IDs, verify output, reviewer findings and how they were handled, AI usage).
     Then `gh pr checks --watch` and report the CI result. **Never merge.** The owner reviews and merges.
 11. **Report.** Give the PR URL, a short summary, and any open questions.
