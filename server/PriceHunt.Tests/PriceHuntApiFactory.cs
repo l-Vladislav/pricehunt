@@ -9,10 +9,6 @@ using PriceHunt.Api.Suppliers;
 
 namespace PriceHunt.Tests;
 
-/// <summary>
-/// The real app on its own in-memory SQLite database (migrated on startup), with fake time and fixed random values.
-/// Each test creates its own factory.
-/// </summary>
 public sealed class PriceHuntApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString = $"Data Source=test-{Guid.NewGuid()};Mode=Memory;Cache=Shared";

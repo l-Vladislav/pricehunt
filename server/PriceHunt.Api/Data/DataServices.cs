@@ -22,7 +22,6 @@ public static class DataServices
         return services;
     }
 
-    // P3: the schema is created on first run.
     public static void MigrateDatabase(this WebApplication app)
     {
         using var db = app.Services.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext();

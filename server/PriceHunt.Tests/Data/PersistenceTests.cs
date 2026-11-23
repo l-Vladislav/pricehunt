@@ -6,10 +6,6 @@ using PriceHunt.Api.Suppliers;
 
 namespace PriceHunt.Tests.Data;
 
-/// <summary>
-/// The orchestrator and the EF recorder from the app's services, on the factory's SQLite database. No HTTP.
-/// Supplier delays and prices come from the factory's default random values.
-/// </summary>
 public class PersistenceTests
 {
     private static readonly TimeSpan HarborDelay = TimeSpan.FromSeconds(1.0625);
@@ -30,7 +26,7 @@ public class PersistenceTests
         Assert.Empty(await db.Database.GetPendingMigrationsAsync(Ct));
         var tables = await SqliteMasterNamesAsync(db, "table");
         Assert.Superset(new HashSet<string> { "Suppliers", "Searches", "SearchSuppliers", "SupplierResponses" }, tables.ToHashSet());
-        Assert.Contains("IX_Searches_CreatedAtUtc", await SqliteMasterNamesAsync(db, "index")); // history date filter (I4)
+        Assert.Contains("IX_Searches_CreatedAtUtc", await SqliteMasterNamesAsync(db, "index"));
         var suppliers = await db.Suppliers.Select(s => new { s.Id, s.Name }).ToListAsync(Ct);
         Assert.Equal(
             SupplierCatalog.All.Select(s => new { s.Id, s.Name }).OrderBy(s => s.Id),
@@ -155,9 +151,8 @@ public class PersistenceTests
 
         await RunFullSearchAsync(factory);
 
-        // A new context, so the values come from SQLite through the converter, not from tracked entities.
-        // Equal times alone don't prove the converter: DateTime equality ignores Kind. Kind alone doesn't either:
-        // ToUniversalTime() also returns Utc, but shifted by the machine's offset (CI sets TZ for this).
+        // A new context, so the values go through the converter. Both checks are needed: DateTime equality ignores Kind,
+        // and ToUniversalTime() also returns Utc but shifts the value by the machine's offset (CI sets TZ for this).
         await using var db = await CreateDbAsync(factory);
         var search = await db.Searches.SingleAsync(Ct);
         Assert.Equal(startedAt, search.CreatedAtUtc);

@@ -3,13 +3,10 @@ using PriceHunt.Api.Search;
 
 namespace PriceHunt.Api.Data;
 
-/// <summary>
-/// Writes a search and its responses. Each write uses its own context, so no context is shared across threads.
-/// </summary>
 public sealed class EfSearchRecorder(IDbContextFactory<AppDbContext> dbFactory) : ISearchRecorder
 {
-    // SQLite has one writer. Without this gate, concurrent searches retry on the locked file and their responses
-    // arrive seconds late (plan.md, "Checked by a spike").
+    // SQLite has one writer. Without this gate, concurrent searches wait on the locked file and miss the deadline.
+    // No test can catch its removal: the in-memory test database has no file lock.
     private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     public Task StartAsync(SearchRequest request, IReadOnlyList<string> supplierIds, DateTime createdAtUtc, CancellationToken ct) =>
