@@ -5,7 +5,6 @@ namespace PriceHunt.Tests.Suppliers;
 
 public class SupplierEndpointsTests
 {
-    // S1
     [Fact]
     public async Task S1_GetSuppliers_ReturnsSevenSuppliersWithIdAndName()
     {
