@@ -21,8 +21,8 @@ Do one full pass: read every file in scope end to end and check all angles toget
    - **Scope:** changes outside the task, new dependencies, dead code, speculative abstractions.
    - **Later tasks:** does this change match what later task files expect (types, contracts, factory setup)? Would a later task have to rework it?
    - **Test quality:** tests that pass trivially, use real time, assert on mocks only, or were weakened.
-     Would each test fail without the change, also in CI? The server job runs in UTC; the client job uses the `TZ` set in
-     `ci.yml` (UTC if none is set) and runs tests in jsdom.
+     Would each test fail without the change, also in CI? Both jobs run in the `TZ` set in `ci.yml` (UTC if none is set);
+     client tests run in jsdom.
    - **Logic:** the order of steps where it matters, contradictions with the docs or the framework, and leftovers that serve
      no purpose. Mark those "remove".
 4. Don't modify files. You may run `dotnet test --solution server/PriceHunt.sln` / `npx ng test --watch=false` to confirm a suspicion.
@@ -36,8 +36,11 @@ Simulate implementing the tasks in order. For each task check:
 - **Size:** fits one PR (~20 files, ~400 changed lines without generated files), otherwise propose a split.
 - **Decisions:** no signature, payload, error format or UI behaviour is left for the developer to invent mid-task.
 - **Testable:** every asserted value is defined; timing works with `FakeTimeProvider`, data with in-memory SQLite.
-- **Logic:** every test can fail when the code is wrong, also in CI (server in UTC, client in the `TZ` from `ci.yml`, jsdom); the order of steps is defined
+- **Logic:** every test can fail when the code is wrong, also in CI (the `TZ` from `ci.yml`, jsdom); the order of steps is defined
   where it matters; no sentence contradicts another file or how the framework behaves; nothing is left that no longer serves a purpose.
+- **Guarantees:** for each guarantee in `plan.md` (a status, a token, an order, what is stored or dropped), name the test that
+  fails if it is broken. Check that the test's fakes don't bypass the guarantee (e.g. a fake that ignores `ct`) and that CI
+  can make it fail. A guarantee without such a test is a finding.
 Then check the PDF (every bullet maps to a task and a test or a stated manual check, nothing extra), cross-file consistency
 (IDs, names, commands, contracts, status values), the simplest current .NET 10 / Angular 22 approach, and the writing rules.
 

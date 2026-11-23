@@ -22,6 +22,7 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
 - HC1: opening the page requests exactly `page=1&pageSize=20&sortBy=date&sortDir=desc`.
 - HC1: typing `11/23/2026` key by key on the raw input (`TestElement.sendKeys`) sends no request; dispatching `change` then sends
   exactly one with `startDate=2026-11-23`.
-- HC1: an invalid date, or a start date after the end date, sends no request.
+- HC1: typing `abc` into the start date and dispatching `change` sends no request (the `matDatepickerParse` error makes the
+  form invalid); a start date after the end date sends none either.
 - HC2: the table shows the five columns.
 - I5: a failed row shows "Failed" in the Price cell.

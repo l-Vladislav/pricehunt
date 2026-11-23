@@ -23,6 +23,6 @@ Add Angular Material with a theme, ready for T08b and T10b. No feature code.
 
 ## Tests (Vitest)
 - `toIsoDate` returns the local calendar day for `new Date(2026, 10, 23, 0, 30)` and `new Date(2026, 10, 23, 23, 30)`: both give
-  `"2026-11-23"`. In any non-UTC time zone one of the two catches an implementation based on `toISOString()`. CI runs in UTC,
-  so this task also sets `TZ: Asia/Tokyo` on the client job in `.github/workflows/ci.yml`.
+  `"2026-11-23"`. In any non-UTC time zone one of the two catches an implementation based on `toISOString()`. CI runs in
+  `Asia/Jerusalem` since T04.
 `ng build` proves the theme compiles. The first runtime check of Material components is T08b's harness tests.

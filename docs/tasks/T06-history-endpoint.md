@@ -19,7 +19,9 @@
 
 ## Tests (integration: `PriceHuntApiFactory`, `GET /api/history` over HTTP)
 Seed rows through `AppDbContext` in the factory's database, then call the endpoint. Assert on the JSON DTOs, not on entities.
-- HS1, I4: start/end date filter applies to the search timestamp, inclusive whole UTC days.
+- HS1, I4: start/end date filter applies to the search timestamp, inclusive whole UTC days. Seed searches at
+  `start-1 23:59:59Z`, `start 00:00:00Z`, `end 23:59:59Z` and `end+1 00:00:00Z` → exactly the middle two are returned
+  (with CI in `Asia/Jerusalem`, bounds built through local time fail this).
 - HS1: one, several and no `supplierIds`.
 - HS2, I6: from/to location filter is case-insensitive and trims input; `fromLocation=%20%20` returns the same rows as no `fromLocation`.
 - HS1, HS2: filters combined.

@@ -9,7 +9,10 @@ EF Core + SQLite. The schema is created on startup via `Database.Migrate()` (mig
 - Entities and tables as in plan.md, "Data model". `Suppliers` is seeded from the catalog with `HasData`.
 - Price is stored as `long PriceMinor` (USD cents). Times are stored as UTC `DateTime` (see the spec.md §3 notes for why).
 - SQLite returns `DateTime` with `Kind = Unspecified`. A value converter in `ConfigureConventions` marks every `DateTime` as UTC on read,
-  so the JSON gets a `Z` and the browser shows the right time.
+  so the JSON gets a `Z` and the browser shows the right time. Use `DateTime.SpecifyKind(v, DateTimeKind.Utc)`: `ToUniversalTime()`
+  treats the value as local time and shifts it by the machine's offset.
+- Without `TZ`, CI runs in UTC, where that shift is zero. This task sets `TZ: Asia/Jerusalem` once for the whole workflow (top-level `env:` in
+  `.github/workflows/ci.yml`), so a local-time bug fails the tests in CI too.
 - Enums are stored as strings, so the DB stays readable.
 - The recorder uses its own `DbContext` via `IDbContextFactory<AppDbContext>`. The context is never shared across threads.
 - All recorder writes go through one `SemaphoreSlim(1, 1)` held by the singleton recorder. SQLite has one writer; without
@@ -39,4 +42,5 @@ This keeps the T01 smoke test off the real `pricehunt.db` once `Migrate()` runs 
 - P1, P2, I3: a full search (all 7) persists the search with its parameters and selected suppliers, `Status = TimedOut`, and one response row per supplier that answered (Success / Failed). The hanging supplier has no row (I3).
 - P2, I5: the failure row has `Outcome = Failed`, a null price and a response time.
 - I7: cancel the caller token mid-search → `Status = Cancelled` (finalize used `CancellationToken.None`), and suppliers still pending have no rows.
-- Times read back from the DB have `Kind = Utc`.
+- Times read back from the DB equal the `FakeTimeProvider` time that was written and have `Kind = Utc`. Checking `Kind` alone
+  is not enough: `ToUniversalTime()` also returns `Kind = Utc`.

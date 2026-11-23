@@ -29,19 +29,21 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
    The timer must belong to the timeout CTS: `CancelAfter` on a linked CTS runs on the system clock and ignores `FakeTimeProvider`.
 2. Start one task per selected supplier. A task returns one event (`Quote` or `SupplierFailed`), or ends cancelled when the token fires first.
 3. One loop enumerates `Task.WhenEach(tasks)` with the linked token, which returns tasks in completion order
-   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03). While a task has not been handed out yet,
-   `MoveNextAsync` throws as soon as the token has fired, even if that task already completed. So after the deadline no result
-   is handed out: a late one is dropped, and so is one that completed in time but was still queued behind a write (I3).
-   For each event it persists first (with `CancellationToken.None`, so a started write is never cut off), then yields it to the HTTP stream.
-   This is the only place that touches `DbContext`. When the token fires, the loop exits at the next `MoveNextAsync`, without
-   waiting for pending suppliers. A stored result is always yielded.
+   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03). For each task it persists the event first
+   (with `CancellationToken.None`, so a started write is never cut off), then yields it to the HTTP stream.
+   This is the only place that touches `DbContext`. A stored result is always yielded.
+
+   The loop takes no task after the token fired. While a task has not been taken yet, `MoveNextAsync` throws as soon as the
+   token has fired, even if that task already completed, and the loop exits without waiting for pending suppliers. So a result
+   that completes after the deadline is dropped, and so is one that completed in time but was still queued while the loop saved an earlier result (I1, I3).
+   After the last task `MoveNextAsync` returns `false` without looking at the token.
 4. Ending the search:
-   - all suppliers finished → `Completed`, also if the timeout fired while the last result was being saved;
-   - timeout fired while a supplier was still outstanding → `TimedOut`;
+   - the loop took every task → `Completed`, also if the timeout fired during the last write (every result arrived in time);
+   - the timeout fired before the loop took every task → `TimedOut`;
    - `RequestAborted` fired → `Cancelled`, also during the last write: after the loop the caller's token is checked before
      `Completed` is written. The `OperationCanceledException` propagates to the caller (never caught or swallowed).
 
-   Suppliers that never answered get no response row (I3).
+   Suppliers whose result the loop didn't take get no response row (I3).
 5. The final status is written once, with `CancellationToken.None`. On normal completion it is written before `ended` is yielded,
    so the DB is final when the stream closes. A `finally` block also covers a consumer that stops enumerating early: it cancels
    the linked CTS, awaits all supplier tasks and writes `Cancelled` if no status was written yet.
@@ -54,8 +56,8 @@ Search status in the DB. `Running` is written by `StartAsync` before any supplie
 ```mermaid
 stateDiagram-v2
     [*] --> Running: StartAsync
-    Running --> Completed: every supplier answered or failed
-    Running --> TimedOut: 6 s timeout fired, a supplier still outstanding
+    Running --> Completed: the loop took every task
+    Running --> TimedOut: 6 s timeout fired before the loop took every task
     Running --> Cancelled: RequestAborted, or the consumer stopped early (finally)
     Completed --> [*]
     TimedOut --> [*]
@@ -69,18 +71,18 @@ sequenceDiagram
     participant L as Loop (Task.WhenEach)
     participant R as Recorder (SQLite, one writer)
     participant C as SSE response
-    L->>L: MoveNextAsync (throws if the linked token fired and a task is not handed out yet)
-    alt timeout fired
+    L->>L: MoveNextAsync (throws if the linked token fired and a task is not taken yet)
+    alt threw, the timeout fired
         L->>R: FinishAsync(TimedOut)
         L->>C: ended (timedOut)
-    else caller cancelled
+    else threw, the caller cancelled
         L->>R: FinishAsync(Cancelled) in finally
         Note over C: nothing sent, the client is gone
-    else next task
+    else returned a task
         L->>R: RecordAsync(CancellationToken.None)
         Note over L,R: the deadline may pass here, the result is still sent
         L->>C: quote or supplier-failed
-    else no task left (the deadline may have passed during the last write)
+    else returned false (the deadline may have passed during the last write)
         L->>L: throw if the caller cancelled (then Cancelled in finally)
         L->>R: FinishAsync(Completed)
         L->>C: ended (completed)
@@ -120,6 +122,9 @@ Before T01 the risky parts of this plan were built once in a throwaway copy (not
 Confirmed: the orchestrator design (manual enumeration, `[EnumeratorCancellation]`, the `finally`, late results dropped, `Cancelled`
 written once), `SseItem<object>` with derived fields and camelCase enums, abort through `TestServer`, built-in validation on records
 and on `[AsParameters]` with `IValidatableObject`, the in-memory SQLite factory, the UTC converter, `HasData`, and null-last price sorting in SQL.
+The spike's loop checked the token after each `MoveNextAsync`. The current loop has no such check and relies on how `Task.WhenEach`
+handles cancellation. That was checked later on .NET 10 with a console app: `MoveNextAsync` throws after the token fired while a
+task is not taken yet, even a completed one, and returns `false` after the last task without looking at the token.
 Found and fixed in the tasks:
 - Concurrent searches waited seconds for the SQLite write lock. With 10 searches at once `ended` came at 7.4 s instead of 6 s;
   with 100, 16 of 600 responses that arrived in time were lost. One in-process writer (`SemaphoreSlim`) brought it to 6.05 s
