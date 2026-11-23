@@ -33,7 +33,10 @@ So the recorder sends its writes through one `SemaphoreSlim` and they queue in m
 with SQL Server or PostgreSQL concurrent writes just work and the gate would be removed. It also only works inside one process.
 
 ## What I would do differently
-_TODO (T11)._
+- Suppliers per route. Real carriers serve some routes and not others, so the supplier list would depend on the from and to
+  location. The assignment has the same seven suppliers for every route, and this project follows it.
+
+_TODO (T11): the rest of this section._
 
 ## Where AI was used
 _TODO (T11): which tools and where, built from [docs/ai-usage.md](docs/ai-usage.md)._
