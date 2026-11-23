@@ -159,7 +159,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T07](tasks/T07-client-stream.md) | Client SSE-over-fetch stream client | SC2, SC6 | [x] |
 | [T07b](tasks/T07b-material-setup.md) | Angular Material setup, date adapter, `toIsoDate` (ADR-0002) | — | [x] |
 | [T08a](tasks/T08a-search-store.md) | Search store: sorted results, progress, stale guard | SC2, SC3, SC4, SC5, SC6, SS5, I1 | [x] |
-| [T08b](tasks/T08b-search-page.md) | Search page: form, result list, progress line | SC1, SC2, SC4, SC5, SC6 | [ ] |
+| [T08b](tasks/T08b-search-page.md) | Search page: form, result list, progress line | SC1, SC2, SC4, SC5, SC6 | [~] |
 | [T09](tasks/T09-no-flicker.md) | Smooth re-ordering (FLIP) | SC4 | [ ] |
 | [T10a](tasks/T10a-history-filters.md) | History page: route, API client, filters, table | HC1, HC2, I4, I5 | [ ] |
 | [T10b](tasks/T10b-history-table.md) | History page: sorting, paging, skeleton | HC2 | [ ] |
