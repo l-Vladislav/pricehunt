@@ -1,0 +1,29 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Assignment brief (kept locally)
+*.pdf
+
+# Claude Code local settings
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Secrets
+.env
+.env.*
+
+# OS / IDE
+.vscode/
+.DS_Store
+Thumbs.db
+.idea/
