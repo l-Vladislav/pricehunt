@@ -10,7 +10,9 @@
     local days into these instants (T10a). Bind them as `DateTimeOffset?` and compare `.UtcDateTime` with the stored UTC values,
     so the result never depends on the server's time zone;
   - `supplierIds`: 0..n, empty = all;
-  - `fromLocation`/`toLocation`: trimmed, then case-insensitive equality (I6). Empty after trimming = no filter. SQLite `lower()` folds ASCII only, which is fine here.
+  - `fromLocation`/`toLocation`: trimmed, then case-insensitive equality (I6). Empty after trimming = no filter. Compare with SQLite's `NOCASE` collation. It folds ASCII only,
+    which is fine here. `ToLower()` on both sides would fold the input in .NET and the column in SQLite by different rules,
+    so a location like `Österreich` would not match itself.
 - `sortBy` whitelist: `date|route|supplier|price|responseTime`, `sortDir`: `asc|desc`. Default: `date desc`, newest first. `date` is the search timestamp (I4), `route` is from then to location, `supplier` is the supplier name. Failed rows (null price) sort last for both directions of `price`. Add a stable secondary sort by `Id` ascending, for both directions.
 - `startDate >= endDate` → 400.
 - `page` is 1..1,000,000 (the cap keeps `(page - 1) * pageSize` inside `int`). `pageSize` is 1..100, default 20.
