@@ -5,6 +5,8 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
+using PriceHunt.Api.Data;
+using PriceHunt.Api.Search;
 using PriceHunt.Api.Suppliers;
 
 namespace PriceHunt.Tests;
@@ -24,6 +26,9 @@ public sealed class PriceHuntApiFactory : WebApplicationFactory<Program>
 
     public FakeTimeProvider Time { get; } = new();
 
+    /// <summary>Completes when the search's final status is in the DB. For tests that run one search.</summary>
+    public Task SearchFinished => ((FinishSignalingRecorder)Services.GetRequiredService<ISearchRecorder>()).Finished;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Default", _connectionString);
@@ -31,6 +36,8 @@ public sealed class PriceHuntApiFactory : WebApplicationFactory<Program>
         {
             services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Time));
             services.Replace(ServiceDescriptor.Singleton<IRandomSource>(DefaultRandom()));
+            services.Replace(ServiceDescriptor.Singleton<ISearchRecorder>(sp =>
+                new FinishSignalingRecorder(ActivatorUtilities.CreateInstance<EfSearchRecorder>(sp))));
         });
     }
 
