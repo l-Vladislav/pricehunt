@@ -33,6 +33,7 @@ public sealed class SearchOrchestrator(IEnumerable<ISupplier> suppliers, ISearch
 
         var startedAt = timeProvider.GetTimestamp();
         var tasks = selected.Select(s => QueryAsync(s, criteria, startedAt, linkedCts.Token)).ToList();
+        var statusWritten = false;
         try
         {
             yield return new SearchStarted(request.SearchId, [.. selected.Select(s => new SupplierInfo(s.Id, s.Name))]);
@@ -63,7 +64,12 @@ public sealed class SearchOrchestrator(IEnumerable<ISupplier> suppliers, ISearch
                     : new SupplierFailed(request.SearchId, result.SupplierId, result.ResponseTimeMs);
             }
 
+            // The loop ends without looking at the token after the last task, so a caller that left during the
+            // last write is caught here. The caller's token, not the linked one: a timeout there still means Completed.
+            ct.ThrowIfCancellationRequested();
+
             await recorder.FinishAsync(request.SearchId, status, CancellationToken.None);
+            statusWritten = true;
             yield return new SearchEnded(request.SearchId, status, responded, selected.Count);
         }
         finally
@@ -71,6 +77,10 @@ public sealed class SearchOrchestrator(IEnumerable<ISupplier> suppliers, ISearch
             // Cancel() runs the suppliers' cancellation callbacks before it returns, so the hanging one ends here.
             linkedCts.Cancel();
             await ((Task)Task.WhenAll(tasks)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+            // The caller cancelled, or the consumer stopped enumerating early (I7).
+            if (!statusWritten)
+                await recorder.FinishAsync(request.SearchId, SearchStatus.Cancelled, CancellationToken.None);
         }
     }
 
