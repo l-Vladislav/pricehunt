@@ -12,6 +12,9 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 
+builder.Services.AddProblemDetails();
+builder.Services.AddValidation();
+
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSuppliers();
 builder.Services.AddDatabase();

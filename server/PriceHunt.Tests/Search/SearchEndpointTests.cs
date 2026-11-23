@@ -151,13 +151,13 @@ public class SearchEndpointTests
     }
 
     [Theory]
-    [InlineData("fromLocation", null, "fromLocation")]
-    [InlineData("toLocation", "   ", "toLocation")]
-    [InlineData("fromDate", null, "fromDate")]
-    [InlineData("toDate", null, "toDate")]
-    [InlineData("fromDate", "2026-12-06", "fromDate")]
-    [InlineData("supplierIds", new[] { "harbor", "nope" }, "supplierIds")]
-    [InlineData("searchId", "00000000-0000-0000-0000-000000000000", "searchId")]
+    [InlineData("fromLocation", null, nameof(SearchRequest.FromLocation))]
+    [InlineData("toLocation", "   ", nameof(SearchRequest.ToLocation))]
+    [InlineData("fromDate", null, nameof(SearchRequest.FromDate))]
+    [InlineData("toDate", null, nameof(SearchRequest.ToDate))]
+    [InlineData("fromDate", "2026-12-06", nameof(SearchRequest.FromDate))]
+    [InlineData("supplierIds", new[] { "harbor", "nope" }, nameof(SearchRequest.SupplierIds))]
+    [InlineData("searchId", "00000000-0000-0000-0000-000000000000", nameof(SearchRequest.SearchId))]
     public async Task SS1_InvalidRequest_Returns400ProblemDetails_AndStoresNothing(string field, object? value, string errorKey)
     {
         await using var factory = new PriceHuntApiFactory();
@@ -185,7 +185,7 @@ public class SearchEndpointTests
 
         using var response = await PostHeadersAsync(client, Body(searchId));
 
-        await AssertValidationProblemAsync(response, "searchId");
+        await AssertValidationProblemAsync(response, nameof(SearchRequest.SearchId));
     }
 
     [Fact]
@@ -255,6 +255,7 @@ public class SearchEndpointTests
         return new SseReader(response, await response.Content.ReadAsStreamAsync(ct), ct);
     }
 
+    // The built-in validation keys errors by the C# property name, not the camelCase JSON name.
     private static async Task AssertValidationProblemAsync(HttpResponseMessage response, string errorKey)
     {
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
