@@ -1,0 +1,306 @@
+using Microsoft.Extensions.Time.Testing;
+using PriceHunt.Api.Search;
+using PriceHunt.Api.Suppliers;
+
+namespace PriceHunt.Tests.Search;
+
+public class SearchOrchestratorTests
+{
+    private static readonly Guid SearchId = Guid.NewGuid();
+
+    private readonly FakeTimeProvider _time = new();
+    private readonly CallLog _log = new();
+    private readonly FakeSearchRecorder _recorder;
+    private readonly DateTime _t0;
+
+    public SearchOrchestratorTests()
+    {
+        _recorder = new FakeSearchRecorder(_log);
+        _t0 = _time.GetUtcNow().UtcDateTime;
+    }
+
+    private FakeSupplier[] Suppliers(params string[] ids) => [.. ids.Select(id => new FakeSupplier(id, _log))];
+
+    private static readonly SearchRequest Request =
+        new(SearchId, "Berlin", "Paris", new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 5), SupplierIds: null);
+
+    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, IReadOnlyList<string>? supplierIds = null) =>
+        Start(suppliers, Request with { SupplierIds = supplierIds });
+
+    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, SearchRequest request)
+    {
+        var orchestrator = new SearchOrchestrator(suppliers, _recorder, _time);
+        return orchestrator.RunAsync(request, TestContext.Current.CancellationToken)
+            .GetAsyncEnumerator(TestContext.Current.CancellationToken);
+    }
+
+    // Reads the next event and checks what holds whenever such an event is read: a result was persisted before
+    // it was yielded, and the final status was written exactly once, before `ended`.
+    private async Task<T> Next<T>(IAsyncEnumerator<SearchEvent> events) where T : SearchEvent
+    {
+        Assert.True(await events.MoveNextAsync());
+        var e = Assert.IsType<T>(events.Current);
+        Assert.Equal(SearchId, e.SearchId);
+        switch (e)
+        {
+            case QuoteReceived quote:
+                Assert.Contains($"record:{quote.SupplierId}", _log.Entries);
+                break;
+            case SupplierFailed failed:
+                Assert.Contains($"record:{failed.SupplierId}", _log.Entries);
+                break;
+            case SearchEnded ended:
+                Assert.Equal([ended.Status], _recorder.Statuses);
+                break;
+        }
+        return e;
+    }
+
+    private async Task AssertEnded(IAsyncEnumerator<SearchEvent> events, SearchStatus status, int responded, int total)
+    {
+        Assert.Equal(new SearchEnded(SearchId, status, responded, total), await Next<SearchEnded>(events));
+        Assert.False(await events.MoveNextAsync());
+    }
+
+    // Ends a search whose suppliers never answered, so no test leaves one running.
+    private async Task EndByTimeout(IAsyncEnumerator<SearchEvent> events)
+    {
+        _time.Advance(TimeSpan.FromSeconds(6));
+        Assert.Equal(SearchStatus.TimedOut, (await Next<SearchEnded>(events)).Status);
+    }
+
+    [Fact]
+    public async Task SS2_EventsAreYieldedInCompletionOrder_BeforeTheOthersFinish()
+    {
+        var suppliers = Suppliers("a", "b", "c");
+        var (a, b, c) = (suppliers[0], suppliers[1], suppliers[2]);
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        c.Answer(30m);
+        Assert.Equal(new QuoteReceived(SearchId, "c", 30m, 1000), await Next<QuoteReceived>(events));
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        a.Answer(10m);
+        Assert.Equal(new QuoteReceived(SearchId, "a", 10m, 2000), await Next<QuoteReceived>(events));
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        b.Answer(20m);
+        Assert.Equal(new QuoteReceived(SearchId, "b", 20m, 3000), await Next<QuoteReceived>(events));
+
+        await AssertEnded(events, SearchStatus.Completed, responded: 3, total: 3);
+    }
+
+    [Fact]
+    public async Task P2_StoredTimeIsTheTimeOfTheAnswer_NotOfTheWrite()
+    {
+        var suppliers = Suppliers("a", "b");
+        var (a, b) = (suppliers[0], suppliers[1]);
+        var releaseA = new TaskCompletionSource();
+        _recorder.OnRecord = result => result.SupplierId == "a" ? releaseA.Task : Task.CompletedTask;
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        var quoteA = events.MoveNextAsync().AsTask();
+        _time.Advance(TimeSpan.FromSeconds(1));
+        a.Answer(10m); // A's write is now held
+        _time.Advance(TimeSpan.FromMilliseconds(200));
+        b.Answer(20m);
+        _time.Advance(TimeSpan.FromMilliseconds(300));
+        releaseA.SetResult();
+
+        Assert.True(await quoteA);
+        Assert.Equal(new QuoteReceived(SearchId, "a", 10m, 1000), events.Current);
+        Assert.Equal(new QuoteReceived(SearchId, "b", 20m, 1200), await Next<QuoteReceived>(events));
+        Assert.Equal(new SupplierResult("b", 20m, 1200, _t0.AddMilliseconds(1200)), _recorder.Results[1]);
+        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+    }
+
+    [Fact]
+    public async Task SS4_OneSupplierThrows_TheOthersStillDeliver_AndAFailureIsEmitted()
+    {
+        var suppliers = Suppliers("a", "b");
+        var (a, b) = (suppliers[0], suppliers[1]);
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        a.Fail(new InvalidOperationException("boom"));
+        Assert.Equal(new SupplierFailed(SearchId, "a", 1000), await Next<SupplierFailed>(events));
+        Assert.Equal(new SupplierResult("a", null, 1000, _t0.AddSeconds(1)), _recorder.Results[0]);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        b.Answer(20m);
+        Assert.Equal(new QuoteReceived(SearchId, "b", 20m, 2000), await Next<QuoteReceived>(events));
+
+        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+    }
+
+    [Fact]
+    public async Task SS4_ASupplierCancellingOnItsOwn_IsAFailure_NotTheEndOfTheSearch()
+    {
+        // E.g. an HTTP client timeout inside the supplier: an OperationCanceledException while the search's token is live.
+        var suppliers = Suppliers("a", "b");
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        suppliers[0].Fail(new OperationCanceledException());
+        Assert.Equal(new SupplierFailed(SearchId, "a", 1000), await Next<SupplierFailed>(events));
+
+        suppliers[1].Answer(20m);
+        await Next<QuoteReceived>(events);
+
+        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+    }
+
+    [Fact]
+    public async Task SS3_I1_I2_I3_HangingSupplier_EndsTimedOutAtSixSeconds_WithWhatWasCollected()
+    {
+        var suppliers = Suppliers("a", "b", "hanging");
+        var (a, b, hanging) = (suppliers[0], suppliers[1], suppliers[2]);
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        a.Answer(10m);
+        await Next<QuoteReceived>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        b.Fail(new SupplierUnavailableException("b"));
+        await Next<SupplierFailed>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(4));
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 2, total: 3);
+        Assert.True(hanging.WasCancelled);
+        Assert.Equal(["a", "b"], _recorder.Results.Select(r => r.SupplierId));
+    }
+
+    [Fact]
+    public async Task SS3_AllSuppliersDoneBeforeSixSeconds_EndsCompleted()
+    {
+        var suppliers = Suppliers("a", "b");
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromMilliseconds(5999));
+        suppliers[0].Answer(10m);
+        await Next<QuoteReceived>(events);
+        suppliers[1].Answer(20m);
+        await Next<QuoteReceived>(events);
+
+        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+    }
+
+    [Fact]
+    public async Task SS1_OnlySelectedSuppliersAreQueried_InCatalogOrder_EachOnce()
+    {
+        await using var events = Start(Suppliers("a", "b", "c"), supplierIds: ["c", "a", "c"]);
+
+        var started = await Next<SearchStarted>(events);
+
+        Assert.Equal([new SupplierInfo("a", "Supplier a"), new SupplierInfo("c", "Supplier c")], started.Suppliers);
+        Assert.Equal(["a", "c"], _recorder.StartedSupplierIds);
+        Assert.Equal(["start", "call:a", "call:c"], _log.Entries);
+        await EndByTimeout(events);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SS1_NoSelection_QueriesAllSuppliers(bool emptyList)
+    {
+        await using var events = Start(Suppliers("a", "b", "c"), supplierIds: emptyList ? [] : null);
+
+        var started = await Next<SearchStarted>(events);
+
+        Assert.Equal(["a", "b", "c"], started.Suppliers.Select(s => s.Id));
+        Assert.Equal(["a", "b", "c"], _recorder.StartedSupplierIds);
+        await EndByTimeout(events);
+    }
+
+    [Fact]
+    public async Task Started_IsYieldedAfterTheStartWriteAndEverySupplierCall()
+    {
+        await using var events = Start(Suppliers("a", "b", "c"));
+
+        await Next<SearchStarted>(events);
+
+        Assert.Equal(["start", "call:a", "call:b", "call:c"], _log.Entries);
+        Assert.Equal(_t0, _recorder.CreatedAtUtc);
+        await EndByTimeout(events);
+    }
+
+    [Fact]
+    public async Task SS3_TheStartWriteCountsTowardTheSixSeconds()
+    {
+        var a = Suppliers("a")[0];
+        _recorder.OnStart = () => _time.Advance(TimeSpan.FromSeconds(5));
+        await using var events = Start([a]);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        a.Answer(10m); // too late: the timeout already cancelled the call
+
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 0, total: 1);
+        Assert.Empty(_recorder.Results);
+    }
+
+    [Fact]
+    public async Task P2_TheStartWriteDoesNotCountAsResponseTime()
+    {
+        var a = Suppliers("a")[0];
+        _recorder.OnStart = () => _time.Advance(TimeSpan.FromSeconds(2));
+        await using var events = Start([a]);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        a.Answer(10m);
+
+        Assert.Equal(new QuoteReceived(SearchId, "a", 10m, 1000), await Next<QuoteReceived>(events));
+        Assert.Equal(_t0, _recorder.CreatedAtUtc);
+        Assert.Equal(DateTimeKind.Utc, _recorder.CreatedAtUtc?.Kind);
+        Assert.Equal(_t0.AddSeconds(3), _recorder.Results[0].ReceivedAtUtc);
+        Assert.Equal(DateTimeKind.Utc, _recorder.Results[0].ReceivedAtUtc.Kind);
+        await AssertEnded(events, SearchStatus.Completed, responded: 1, total: 1);
+    }
+
+    [Fact]
+    public async Task SS3_AStartWriteThatOutlastsTheDeadline_StillCompletes_AndTheSearchEndsTimedOut()
+    {
+        // The fake recorder throws if its token fired, so a start write with the linked token fails here.
+        _recorder.OnStart = () => _time.Advance(TimeSpan.FromSeconds(6));
+        await using var events = Start(Suppliers("a"));
+
+        await Next<SearchStarted>(events);
+
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 0, total: 1);
+        Assert.Empty(_recorder.Results);
+    }
+
+    [Fact]
+    public async Task StartWriteFails_TheErrorReachesTheCaller_AndNoSupplierIsCalled()
+    {
+        _recorder.OnStart = () => throw new InvalidOperationException("duplicate search id");
+        await using var events = Start(Suppliers("a", "b"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await events.MoveNextAsync());
+
+        Assert.Empty(_log.Entries);
+        Assert.Empty(_recorder.Statuses);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MissingDate_IsRejectedBeforeAnythingIsWritten(bool missingFromDate)
+    {
+        var request = missingFromDate ? Request with { FromDate = null } : Request with { ToDate = null };
+        await using var events = Start(Suppliers("a"), request);
+
+        await Assert.ThrowsAsync<ArgumentException>(async () => await events.MoveNextAsync());
+
+        Assert.Empty(_log.Entries);
+    }
+}
