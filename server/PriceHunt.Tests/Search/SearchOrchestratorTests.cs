@@ -27,12 +27,21 @@ public class SearchOrchestratorTests
     private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, IReadOnlyList<string>? supplierIds = null) =>
         Start(suppliers, Request with { SupplierIds = supplierIds });
 
-    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, SearchRequest request)
+    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, SearchRequest request) =>
+        Run(suppliers, request, TestContext.Current.CancellationToken);
+
+    // For tests that play the caller and cancel its token themselves.
+    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, CancellationToken callerToken) =>
+        Run(suppliers, Request, callerToken);
+
+    private IAsyncEnumerator<SearchEvent> Run(FakeSupplier[] suppliers, SearchRequest request, CancellationToken ct)
     {
         var orchestrator = new SearchOrchestrator(suppliers, _recorder, _time);
-        return orchestrator.RunAsync(request, TestContext.Current.CancellationToken)
-            .GetAsyncEnumerator(TestContext.Current.CancellationToken);
+        return orchestrator.RunAsync(request, ct).GetAsyncEnumerator(ct);
     }
+
+    private static async Task AssertCallerCancellationPropagates(IAsyncEnumerator<SearchEvent> events) =>
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await events.MoveNextAsync());
 
     // Reads the next event and checks what holds whenever such an event is read: a result was persisted before
     // it was yielded, and the final status was written exactly once, before `ended`.
@@ -302,5 +311,186 @@ public class SearchOrchestratorTests
         await Assert.ThrowsAsync<ArgumentException>(async () => await events.MoveNextAsync());
 
         Assert.Empty(_log.Entries);
+    }
+
+    [Fact]
+    public async Task SS5_I7_CallerCancels_EndsCancelled_AndEverySupplierObservedIt()
+    {
+        using var caller = new CancellationTokenSource();
+        var suppliers = Suppliers("a", "b");
+        await using var events = Start(suppliers, caller.Token);
+        await Next<SearchStarted>(events);
+
+        caller.Cancel();
+
+        await AssertCallerCancellationPropagates(events);
+        Assert.All(suppliers, s => Assert.True(s.WasCancelled));
+        Assert.Equal([SearchStatus.Cancelled], _recorder.Statuses);
+    }
+
+    [Fact]
+    public async Task P1_SS5_I7_CallerLeavesDuringTheStartWrite_TheSearchIsStillRecorded_AndEndsCancelled()
+    {
+        // The fake recorder throws if its token fired, so a start write with the caller's or the linked token fails here.
+        using var caller = new CancellationTokenSource();
+        _recorder.OnStart = () =>
+        {
+            _time.Advance(TimeSpan.FromSeconds(6));
+            caller.Cancel();
+        };
+        await using var events = Start(Suppliers("a"), caller.Token);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            while (await events.MoveNextAsync()) { }
+        });
+
+        Assert.Contains("start", _log.Entries);
+        Assert.Equal([SearchStatus.Cancelled], _recorder.Statuses);
+    }
+
+    [Fact]
+    public async Task SS5_I7_CallerCancelsDuringTheLastWrite_TheResultIsYielded_ThenTheSearchEndsCancelled()
+    {
+        using var caller = new CancellationTokenSource();
+        var suppliers = Suppliers("a", "b");
+        _recorder.OnRecord = result =>
+        {
+            if (result.SupplierId == "b")
+                caller.Cancel();
+            return Task.CompletedTask;
+        };
+        await using var events = Start(suppliers, caller.Token);
+        await Next<SearchStarted>(events);
+        suppliers[0].Answer(10m);
+        await Next<QuoteReceived>(events);
+
+        suppliers[1].Answer(20m);
+
+        Assert.Equal("b", (await Next<QuoteReceived>(events)).SupplierId);
+        await AssertCallerCancellationPropagates(events);
+        Assert.Equal([SearchStatus.Cancelled], _recorder.Statuses);
+    }
+
+    [Fact]
+    public async Task SS5_I7_TimeoutAndCallerBothFireDuringAWrite_EndsCancelled()
+    {
+        using var caller = new CancellationTokenSource();
+        var suppliers = Suppliers("a", "b");
+        _recorder.OnRecord = _ =>
+        {
+            _time.Advance(TimeSpan.FromSeconds(6));
+            caller.Cancel();
+            return Task.CompletedTask;
+        };
+        await using var events = Start(suppliers, caller.Token);
+        await Next<SearchStarted>(events);
+
+        suppliers[0].Answer(10m);
+
+        Assert.Equal("a", (await Next<QuoteReceived>(events)).SupplierId);
+        await AssertCallerCancellationPropagates(events);
+        Assert.Equal([SearchStatus.Cancelled], _recorder.Statuses);
+    }
+
+    [Fact]
+    public async Task SS3_I3_DeadlinePassesDuringAWrite_AnotherSupplierPending_ResultIsKept_AndEndsTimedOut()
+    {
+        var suppliers = Suppliers("a", "b");
+        _recorder.OnRecord = _ =>
+        {
+            _time.Advance(TimeSpan.FromSeconds(6));
+            return Task.CompletedTask;
+        };
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        suppliers[0].Answer(10m);
+
+        Assert.Equal("a", (await Next<QuoteReceived>(events)).SupplierId);
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 1, total: 2);
+        Assert.Single(_recorder.Results);
+    }
+
+    [Fact]
+    public async Task SS3_I3_DeadlinePassesDuringTheLastWrite_ResultIsKept_AndEndsCompleted()
+    {
+        var suppliers = Suppliers("a", "b");
+        _recorder.OnRecord = result =>
+        {
+            if (result.SupplierId == "b")
+                _time.Advance(TimeSpan.FromSeconds(6));
+            return Task.CompletedTask;
+        };
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+        suppliers[0].Answer(10m);
+        await Next<QuoteReceived>(events);
+
+        suppliers[1].Answer(20m);
+
+        Assert.Equal("b", (await Next<QuoteReceived>(events)).SupplierId);
+        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+        Assert.Equal(2, _recorder.Results.Count);
+    }
+
+    [Fact]
+    public async Task SS3_I1_I3_AResultQueuedBehindAWrite_IsDroppedWhenTheDeadlinePasses()
+    {
+        var suppliers = Suppliers("a", "b");
+        var (a, b) = (suppliers[0], suppliers[1]);
+        _recorder.OnRecord = result =>
+        {
+            if (result.SupplierId == "a")
+            {
+                b.Answer(20m); // in time, but the loop is still saving A
+                _time.Advance(TimeSpan.FromSeconds(6));
+            }
+            return Task.CompletedTask;
+        };
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        a.Answer(10m);
+
+        Assert.Equal("a", (await Next<QuoteReceived>(events)).SupplierId);
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 1, total: 2);
+        Assert.Equal(["a"], _recorder.Results.Select(r => r.SupplierId));
+    }
+
+    [Fact]
+    public async Task SS3_I3_AResultAfterTheDeadline_IsNotYieldedOrRecorded()
+    {
+        var a = new FakeSupplier("a", _log);
+        var late = new FakeSupplier("late", _log, ignoresCancellation: true);
+        await using var events = Start([a, late]);
+        await Next<SearchStarted>(events);
+        a.Answer(10m);
+        await Next<QuoteReceived>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(6));
+        late.Answer(20m);
+
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 1, total: 2);
+        Assert.Equal(["a"], _recorder.Results.Select(r => r.SupplierId));
+    }
+
+    [Fact]
+    public async Task I7_ConsumerStopsEarlyWithoutCancelling_SuppliersAreCancelledAndAwaited_AndTheSearchEndsCancelled()
+    {
+        var a = new FakeSupplier("a", _log);
+        var slow = new FakeSupplier("slow", _log, ignoresCancellation: true);
+        var events = Start([a, slow]);
+        await Next<SearchStarted>(events);
+
+        var disposal = events.DisposeAsync().AsTask();
+
+        Assert.False(disposal.IsCompleted); // the finally waits for the slow supplier to end
+        Assert.True(a.WasCancelled);
+        Assert.True(slow.WasCancelled);
+        slow.Answer(20m);
+        await disposal;
+        Assert.Empty(_recorder.Results);
+        Assert.Equal([SearchStatus.Cancelled], _recorder.Statuses);
     }
 }
