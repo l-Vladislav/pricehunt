@@ -26,7 +26,6 @@ public sealed class PriceHuntApiFactory : WebApplicationFactory<Program>
 
     public FakeTimeProvider Time { get; } = new();
 
-    /// <summary>Completes when the search's final status is in the DB. For tests that run one search.</summary>
     public Task SearchFinished => ((FinishSignalingRecorder)Services.GetRequiredService<ISearchRecorder>()).Finished;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

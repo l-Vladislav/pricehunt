@@ -2,10 +2,7 @@ using PriceHunt.Api.Search;
 
 namespace PriceHunt.Tests;
 
-/// <summary>
-/// Wraps the real recorder. <see cref="Finished"/> completes after the inner <c>FinishAsync</c> has returned,
-/// so a test can read the final status without polling.
-/// </summary>
+/// <summary>Completes <see cref="Finished"/> only after the inner <c>FinishAsync</c> has returned, so the status is in the DB.</summary>
 public sealed class FinishSignalingRecorder(ISearchRecorder inner) : ISearchRecorder
 {
     private readonly TaskCompletionSource _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -27,7 +24,6 @@ public sealed class FinishSignalingRecorder(ISearchRecorder inner) : ISearchReco
         }
         catch (Exception e)
         {
-            // A failed write fails the waiting test instead of leaving it waiting forever.
             _finished.TrySetException(e);
             throw;
         }

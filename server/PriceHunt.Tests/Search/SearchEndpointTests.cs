@@ -10,7 +10,7 @@ namespace PriceHunt.Tests.Search;
 
 public class SearchEndpointTests
 {
-    // From the factory's default random values, in delay order. Granite fails, lantern hangs.
+    // From the factory's default random values, in delay order. Lantern hangs.
     private static readonly (string SupplierId, string Type, TimeSpan Delay, decimal? Price)[] Answers =
     [
         ("harbor", "quote", TimeSpan.FromSeconds(1.0625), 443.75m),
@@ -30,7 +30,6 @@ public class SearchEndpointTests
         using var client = factory.CreateClient();
         await using var events = await StartSearchAsync(client, Body(Guid.NewGuid()), Ct);
 
-        // No time has passed yet, so no supplier has answered.
         var started = await events.NextAsync("started");
         Assert.Equal(
             SupplierCatalog.All,
@@ -107,7 +106,6 @@ public class SearchEndpointTests
         Assert.Equal(
             ["comet", "harbor", "maple", "nimbus", "pelican"],
             quotes.Select(q => q.Data.GetProperty("supplierId").GetString()).Order());
-        // Prices are USD, as the factory's random values give them.
         Assert.All(quotes, q => Assert.Equal(
             Answers.Single(a => a.SupplierId == q.Data.GetProperty("supplierId").GetString()).Price,
             q.Data.GetProperty("price").GetDecimal()));
@@ -170,7 +168,7 @@ public class SearchEndpointTests
         return new SseReader(response, await response.Content.ReadAsStreamAsync(ct), ct);
     }
 
-    // Advances to 5 s, past every answering supplier's delay but not the 6 s deadline, and reads their six events.
+    // 5 s: every answering supplier is done, the 6 s deadline hasn't passed.
     private static async Task<List<SseEvent>> ReadAllAnswersAsync(PriceHuntApiFactory factory, SseReader events)
     {
         factory.Time.Advance(TimeSpan.FromSeconds(5));

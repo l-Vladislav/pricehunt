@@ -6,8 +6,7 @@ public static class SearchEndpoints
 {
     public static IEndpointRouteBuilder MapSearchEndpoints(this IEndpointRouteBuilder app)
     {
-        // ct is RequestAborted, so a client that disconnects cancels the search (SS5). The SSE result also passes
-        // RequestAborted to the enumerator; passing it here doesn't depend on that.
+        // ct is RequestAborted: a client that disconnects cancels the search (SS5).
         app.MapPost("/api/search", (SearchRequest request, SearchOrchestrator orchestrator, CancellationToken ct) =>
             TypedResults.ServerSentEvents(orchestrator.RunAsync(request, ct).Select(ToSseItem)));
         return app;
