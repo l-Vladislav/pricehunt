@@ -30,7 +30,8 @@ that TCS itself (see each test for the order), otherwise the `finally` waits for
   `OperationCanceledException`, and the `FinishAsync` calls are exactly `[Cancelled]`.
 - SS5, I7: both fire during a write. Inside A's `RecordAsync` the fake recorder advances past the deadline and cancels the
   caller's CTS, while B is still pending → A is yielded, the test's next `MoveNextAsync` on `RunAsync`'s enumerator throws `OperationCanceledException`, and the
-  `FinishAsync` calls are exactly `[Cancelled]` (a catch filter without `!ct.IsCancellationRequested` fails this).
+  `FinishAsync` calls are exactly `[Cancelled]`. No test can see a catch filter without `!ct.IsCancellationRequested`:
+  the check after the loop throws again. The filter stays so that the caller's exception is never caught.
 - SS3, I3: the deadline passes while a result is being persisted (the fake recorder advances time inside `RecordAsync`) → that
   result is still yielded and counted, and `responded` equals the number of `RecordAsync` calls. Two cases:
   another supplier is still pending → `Ended(TimedOut)`; it was the last result (all other fakes already answered) → `Ended(Completed)`.
