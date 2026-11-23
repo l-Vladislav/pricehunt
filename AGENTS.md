@@ -54,7 +54,7 @@ npx prettier --write .                            # formatting: double quotes, t
 - Inject `TimeProvider` for every delay or timeout, and `IRandomSource` for randomness. Tests use `FakeTimeProvider`, never real sleeps.
 - Every async method that can wait accepts a `CancellationToken` and passes it to everything below.
 - Forbidden: `async void`, `.Result`, `.Wait()`, `Thread.Sleep`, fire-and-forget `Task.Run`, swallowing `OperationCanceledException` that came from the caller's token.
-- `DbContext` is never used from more than one thread. Concurrent producers write to a `Channel<T>`, and one consumer touches the DB.
+- `DbContext` is never used from more than one thread. Supplier calls run concurrently, one loop consumes their results (`Task.WhenEach`), and only that loop touches the DB.
 - The final status write after cancellation uses `CancellationToken.None`.
 - SQLite/EF: store money as `long` minor units and time as UTC `DateTime` (SQLite can't ORDER BY `decimal` or `DateTimeOffset`). Never return entities from endpoints, return DTOs.
 - Schema changes go through EF migrations: `dotnet ef migrations add <Name> --project server/PriceHunt.Api`.

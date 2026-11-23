@@ -1,14 +1,15 @@
 # T05: SSE search endpoint
-**Reqs:** SS1, SS2, SS5, SS6 · ADR-0001
+**Reqs:** SS1, SS2, SS3, SS4, SS5 · ADR-0001
 
 ## Goal
 `POST /api/search` validates input and streams the orchestrator's events as SSE.
 Use `TypedResults.ServerSentEvents(...)` (.NET 10) with typed payloads and camelCase JSON.
 
 ## Validation (400 with ProblemDetails)
-- Locations are required (non-empty after trimming).
-- `fromDate <= toDate`. Dates are `DateOnly`.
-- `supplierIds` empty/null → all suppliers. An unknown id → 400.
+Use the built-in Minimal API validation (`builder.Services.AddValidation()`), not hand-written checks.
+- Locations: `[Required]` (rejects empty and whitespace-only strings).
+- `fromDate <= toDate` via `IValidatableObject` on the request. Dates are `DateOnly`.
+- `supplierIds` empty/null → all suppliers. An unknown id → 400, checked in the handler because it needs the supplier catalog.
 
 ## Acceptance criteria
 - No response buffering or compression on this endpoint. The first event reaches the client before 500 ms.

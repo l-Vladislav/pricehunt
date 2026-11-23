@@ -31,4 +31,5 @@ _TODO (T11)._
 
 ## Where AI was used
 _TODO (T11): which tools and where, built from [docs/ai-usage.md](docs/ai-usage.md)._
+
 Rules for the coding agent are in [`AGENTS.md`](AGENTS.md).

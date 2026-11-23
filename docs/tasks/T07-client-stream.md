@@ -11,6 +11,6 @@ It uses `fetch` with POST and parses the SSE `ReadableStream`. Unsubscribe → `
 - Do **not** use `EventSource`: it is GET-only and auto-reconnects, which would restart the search.
 
 ## Tests (Vitest)
-- The parser handles all three chunking cases.
-- Unsubscribing calls `abort()`.
+- SC2: the parser handles all three chunking cases, and each event is emitted as soon as its chunk is read.
+- SC6: unsubscribing calls `abort()`.
 - A non-2xx response → Observable error with the message.

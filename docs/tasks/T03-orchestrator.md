@@ -1,5 +1,5 @@
 # T03: Search orchestrator
-**Reqs:** SS2, SS3, SS4, SS5 · **Interpretations:** I1, I2, I3
+**Reqs:** SS1, SS2, SS3, SS4, SS5 · **Interpretations:** I1, I2, I3
 
 ## Goal
 `SearchOrchestrator.RunAsync(SearchRequest, CancellationToken) : IAsyncEnumerable<SearchEvent>`.
@@ -7,9 +7,10 @@ It yields events as they happen and finishes with exactly one terminal outcome. 
 Persistence plugs in through `ISearchRecorder` (fake here, real in T04).
 
 ## Design (see plan.md, "Concurrency model")
-- Linked CTS = caller `ct` + `CancelAfter(6 s)` via `TimeProvider`. Keep track of **which** one fired.
-- One task per supplier → `Channel<SearchEvent>`. Each task catches **all** exceptions except cancellation of the linked token.
-- A single consumer loop yields events. The channel is completed when every supplier task is done or the token fires.
+- Timeout CTS = `new CancellationTokenSource(TimeSpan.FromSeconds(6), timeProvider)`, linked with the caller `ct`. Keep track of **which** one fired.
+  Don't call `CancelAfter` on the linked CTS: it uses the system clock, so `FakeTimeProvider` can't trigger it.
+- One task per supplier. Each task catches **all** exceptions except cancellation of the linked token, and returns one event.
+- One loop: `await foreach (var task in Task.WhenEach(tasks))` yields events in completion order. It stops when every task is done or the linked token fires.
 - Outcome:
   - all done → `Completed`;
   - timeout → `TimedOut`;

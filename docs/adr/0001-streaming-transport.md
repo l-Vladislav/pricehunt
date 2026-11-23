@@ -1,4 +1,4 @@
-# ADR-0001 — Streaming search results: SSE over `fetch`
+# ADR-0001: Streaming search results with SSE over `fetch`
 
 **Status:** Accepted · **Reqs:** SS2, SS5, SS6, SC6
 
