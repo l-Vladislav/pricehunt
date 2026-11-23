@@ -101,7 +101,6 @@ describe("HistoryPage", () => {
 		await respond(historyRequest(), ...items);
 	}
 
-	// Three pages.
 	async function openPageOf45(): Promise<void> {
 		await createPage();
 		http.expectOne(suppliersUrl).flush(suppliers);

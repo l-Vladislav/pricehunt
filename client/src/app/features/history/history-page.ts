@@ -125,7 +125,6 @@ export class HistoryPage {
 		this.view.update((view) => ({
 			...view,
 			sortBy: active as HistoryQuery["sortBy"],
-			// Never empty: matSortDisableClear.
 			sortDir: direction as HistoryQuery["sortDir"],
 			pageIndex: 0,
 		}));
