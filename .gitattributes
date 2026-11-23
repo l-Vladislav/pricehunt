@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.gif binary
+
+# Generated files: collapsed in GitHub diffs
+client/package-lock.json linguist-generated=true
+server/**/Migrations/** linguist-generated=true
