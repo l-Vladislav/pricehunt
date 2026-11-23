@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace PriceHunt.Api.History;
 
-// Bound with [AsParameters] and checked by the built-in validation. A record, not a class: on a class a non-nullable
-// property with an initializer still counts as required, so a request without `page` would get a 400.
+// A record, not a class: on a class, properties with initializers still count as required.
 // The page cap keeps (Page - 1) * PageSize inside int.
 public record HistoryQuery(
     DateTimeOffset? StartDate = null,

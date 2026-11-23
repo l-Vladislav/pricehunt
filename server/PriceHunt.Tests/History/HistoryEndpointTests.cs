@@ -140,8 +140,7 @@ public class HistoryEndpointTests
         Assert.Equal(100.25m, page.Items.Single(i => i.GetProperty("id").GetInt64() == ids["cheap"]).GetProperty("price").GetDecimal());
     }
 
-    // A, C and E share the from location. Their ids are in neither asc nor desc order of the to location,
-    // so a route sort that leaves it out fails in both directions.
+    // A, C and E share the from location, and their id order differs from both directions of the to location.
     [Theory]
     [InlineData("date", "asc", "E,D,A,C,B")]
     [InlineData("date", "desc", "B,C,A,D,E")]
@@ -176,8 +175,8 @@ public class HistoryEndpointTests
     public async Task HS1_TiedRows_AreOrderedById_InBothDirections(string sortBy, string sortDir)
     {
         await using var factory = new PriceHuntApiFactory();
-        // With a supplier filter SQLite reads the rows in supplier order, so without the sort by id they come back in reverse.
-        // The response times differ, so a date sort that uses the response time stamp also fails.
+        // SQLite reads filtered rows in supplier order, so without the sort by id they come back in reverse.
+        // The response times differ, so a date sort by ReceivedAtUtc also fails.
         var ids = await SeedAsync(factory,
             Row("first") with { SupplierId = "pelican", ResponseTimeMs = 2000 },
             Row("second") with { SupplierId = "maple", ResponseTimeMs = 3000 },
@@ -310,7 +309,6 @@ public class HistoryEndpointTests
 
         var page = await GetPageAsync(factory, "");
 
-        // One 5 s step stamps every response time at 5 s, so the rows are checked by supplier, not by order.
         Assert.Equal(6, page.Total);
         Assert.All(page.Items, i => Assert.Equal(
             ("Berlin", "Paris"), (i.GetProperty("fromLocation").GetString(), i.GetProperty("toLocation").GetString())));
@@ -341,7 +339,6 @@ public class HistoryEndpointTests
 
     private static SeedRow Row(string key = "row") => new(key, Noon, "Berlin", "Paris", "comet", 10_000, 1000);
 
-    // One search per row, inserted in the given order, so response ids grow in that order. Returns the response id per key.
     private static async Task<Dictionary<string, long>> SeedAsync(PriceHuntApiFactory factory, params SeedRow[] rows)
     {
         await using var db = await CreateDbAsync(factory);
