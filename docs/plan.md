@@ -29,13 +29,19 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
    The timer must belong to the timeout CTS: `CancelAfter` on a linked CTS runs on the system clock and ignores `FakeTimeProvider`.
 2. Start one task per selected supplier. A task returns one event (`Quote` or `SupplierFailed`), or ends cancelled when the token fires first.
 3. One loop enumerates `Task.WhenEach(tasks)` with the linked token, which returns tasks in completion order
-   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03). The token is checked right after each
-   `MoveNextAsync`, inside the same `try`, so a timeout always ends as `TimedOut`.
-   For each event it persists first (with `CancellationToken.None`, so a received response is never lost), then yields it to the HTTP stream.
-   This is the only place that touches `DbContext`. When the token fires, the loop exits at once, without waiting for pending suppliers,
-   and a result that completes after that is dropped before it is stored. A stored result is always yielded.
-4. Ending the search: all suppliers finished → `Completed`. Timeout fired → `TimedOut`. `RequestAborted` fired → `Cancelled`, and the
-   `OperationCanceledException` propagates to the caller (never caught or swallowed). Suppliers that never answered get no response row (I3).
+   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03). While a task has not been handed out yet,
+   `MoveNextAsync` throws as soon as the token has fired, even if that task already completed. So after the deadline no result
+   is handed out: a late one is dropped, and so is one that completed in time but was still queued behind a write (I3).
+   For each event it persists first (with `CancellationToken.None`, so a started write is never cut off), then yields it to the HTTP stream.
+   This is the only place that touches `DbContext`. When the token fires, the loop exits at the next `MoveNextAsync`, without
+   waiting for pending suppliers. A stored result is always yielded.
+4. Ending the search:
+   - all suppliers finished → `Completed`, also if the timeout fired while the last result was being saved;
+   - timeout fired while a supplier was still outstanding → `TimedOut`;
+   - `RequestAborted` fired → `Cancelled`, also during the last write: after the loop the caller's token is checked before
+     `Completed` is written. The `OperationCanceledException` propagates to the caller (never caught or swallowed).
+
+   Suppliers that never answered get no response row (I3).
 5. The final status is written once, with `CancellationToken.None`. On normal completion it is written before `ended` is yielded,
    so the DB is final when the stream closes. A `finally` block also covers a consumer that stops enumerating early: it cancels
    the linked CTS, awaits all supplier tasks and writes `Cancelled` if no status was written yet.
@@ -49,7 +55,7 @@ Search status in the DB. `Running` is written by `StartAsync` before any supplie
 stateDiagram-v2
     [*] --> Running: StartAsync
     Running --> Completed: every supplier answered or failed
-    Running --> TimedOut: 6 s timeout fired
+    Running --> TimedOut: 6 s timeout fired, a supplier still outstanding
     Running --> Cancelled: RequestAborted, or the consumer stopped early (finally)
     Completed --> [*]
     TimedOut --> [*]
@@ -63,17 +69,21 @@ sequenceDiagram
     participant L as Loop (Task.WhenEach)
     participant R as Recorder (SQLite, one writer)
     participant C as SSE response
-    L->>L: MoveNextAsync, then check the linked token (one try)
+    L->>L: MoveNextAsync (throws if the linked token fired and a task is not handed out yet)
     alt timeout fired
         L->>R: FinishAsync(TimedOut)
         L->>C: ended (timedOut)
     else caller cancelled
         L->>R: FinishAsync(Cancelled) in finally
         Note over C: nothing sent, the client is gone
-    else token not fired
+    else next task
         L->>R: RecordAsync(CancellationToken.None)
         Note over L,R: the deadline may pass here, the result is still sent
         L->>C: quote or supplier-failed
+    else no task left (the deadline may have passed during the last write)
+        L->>L: throw if the caller cancelled (then Cancelled in finally)
+        L->>R: FinishAsync(Completed)
+        L->>C: ended (completed)
     end
 ```
 

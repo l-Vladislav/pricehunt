@@ -15,5 +15,5 @@
 
 ## Release check
 - Fresh `git clone` into a temp dir → both commands work, the DB is created, a search runs end-to-end.
-- Everything in `AGENTS.md` "Done means" is green.
+- Everything in `AGENTS.md` "Done means" is green, client commands included.
 - No `pricehunt.db`, `bin/`, `obj/` or `node_modules/` in git.

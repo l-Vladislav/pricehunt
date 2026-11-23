@@ -14,11 +14,13 @@ Read the changed files, then answer **every** item with ✅, ❌ + file:line, or
 - [ ] Every supplier call receives the linked token. The hanging supplier ends only through that token.
 - [ ] Each supplier task isolates its own exceptions. One failure can't fault the whole search (SS4).
 - [ ] Cancellation of the linked token is not reported as a supplier failure.
-- [ ] The loop enumerates `Task.WhenEach(...)` with the linked token and exits as soon as the token fires.
+- [ ] The loop enumerates `Task.WhenEach(...)` with the linked token and exits at the next `MoveNextAsync` after the token fires.
 - [ ] Every DB write goes through the recorder's `SemaphoreSlim(1, 1)` (SQLite has one writer).
-- [ ] Per result: check the token, persist (with `CancellationToken.None`), yield. A late result is neither stored nor streamed;
-      a stored one is always streamed.
-- [ ] A caller cancellation writes `Cancelled` (in the `finally`) and its `OperationCanceledException` propagates uncaught. A timeout ends as `TimedOut`.
+- [ ] Only `MoveNextAsync` sits in the `try/catch` that turns a timeout into `TimedOut`. A late result is neither stored nor
+      streamed. Each result is persisted (with `CancellationToken.None`), then yielded; a stored one is always streamed.
+- [ ] A caller cancellation writes `Cancelled` (in the `finally`) and its `OperationCanceledException` propagates uncaught,
+      also during the last write: the caller's token is checked after the loop, before `Completed` is written.
+      A timeout with a supplier still outstanding ends as `TimedOut`; one that fires during the last write ends as `Completed`.
 - [ ] A `finally` block cancels the linked CTS and awaits all supplier tasks (`SuppressThrowing`) before the method returns,
       also when the consumer stops enumerating early. No unobserved task exceptions.
 - [ ] `DbContext` is touched by one consumer only. The final status write uses `CancellationToken.None`.

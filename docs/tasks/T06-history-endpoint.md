@@ -21,7 +21,7 @@
 Seed rows through `AppDbContext` in the factory's database, then call the endpoint. Assert on the JSON DTOs, not on entities.
 - HS1, I4: start/end date filter applies to the search timestamp, inclusive whole UTC days.
 - HS1: one, several and no `supplierIds`.
-- HS2, I6: from/to location filter is case-insensitive and trims input.
+- HS2, I6: from/to location filter is case-insensitive and trims input; `fromLocation=%20%20` returns the same rows as no `fromLocation`.
 - HS1, HS2: filters combined.
 - I5: failed rows are returned with a null price and sort last by price, asc and desc.
 - Sorting by every column, asc and desc, returns the right order (runs in SQLite, so client-side evaluation or a translation error fails the test).
