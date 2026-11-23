@@ -35,7 +35,8 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
   form invalid); a start date after the end date sends none either.
 - HC1: a start date after the end date shows its message when the field is left, until it is fixed. A filter change sends
   nothing meanwhile.
-- HC1: a failed supplier or history request (500, network error) shows its message. Filters work after a failed history request.
+- HC1: a failed supplier or history request (500, network error) shows its message. Filters work after a failed history request
+  and after an end date with no next day (`9/13/275760`, the last date JavaScript has), which shows the same message.
 - HC1: the page is at `/history`, and it and the search page link to each other.
 - HC1: one date works alone and can be cleared. Filters are combined.
 - I4: the bounds are local midnights at a month end, on a clock change day and for a typed time.

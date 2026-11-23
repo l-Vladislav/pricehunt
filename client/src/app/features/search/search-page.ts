@@ -15,6 +15,7 @@ import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
+import { RouterLink } from "@angular/router";
 import { Supplier, SuppliersApi } from "../../core/suppliers-api";
 import { toIsoDate } from "../../core/to-iso-date";
 import { AnimateMove } from "./animate-move";
@@ -31,6 +32,7 @@ import { SearchStore } from "./search-store";
 		MatFormFieldModule,
 		MatInputModule,
 		ReactiveFormsModule,
+		RouterLink,
 	],
 	providers: [SearchStore],
 	templateUrl: "./search-page.html",

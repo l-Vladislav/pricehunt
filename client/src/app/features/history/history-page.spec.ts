@@ -13,10 +13,11 @@ import {
 import { MatFormFieldHarness } from "@angular/material/form-field/testing";
 import { MatSelectHarness } from "@angular/material/select/testing";
 import { MatTableHarness } from "@angular/material/table/testing";
-import { provideRouter } from "@angular/router";
+import { provideRouter, Router } from "@angular/router";
 import { RouterTestingHarness } from "@angular/router/testing";
 import { routes } from "../../app.routes";
 import { API_BASE_URL } from "../../core/api-base-url";
+import { HistoryItem } from "../../core/history-api";
 import { HistoryPage } from "./history-page";
 
 const suppliers = ["s1", "s2", "s3"].map((id) => ({ id, name: `Supplier ${id}` }));
@@ -24,17 +25,7 @@ const suppliersUrl = "http://api.test/api/suppliers";
 const historyUrl = "http://api.test/api/history";
 const firstPage = "page=1&pageSize=20&sortBy=date&sortDir=desc";
 
-interface Item {
-	id: number;
-	date: string;
-	fromLocation: string;
-	toLocation: string;
-	supplierName: string;
-	price: number | null;
-	responseTimeMs: number;
-}
-
-const item: Item = {
+const item: HistoryItem = {
 	id: 1,
 	date: "2026-11-23T22:30:00Z",
 	fromLocation: "Haifa",
@@ -89,12 +80,12 @@ describe("HistoryPage", () => {
 		return requests[0];
 	}
 
-	async function respond(request: TestRequest, ...items: Item[]): Promise<void> {
+	async function respond(request: TestRequest, ...items: HistoryItem[]): Promise<void> {
 		request.flush({ items, total: items.length, page: 1, pageSize: 20 });
 		await fixture.whenStable();
 	}
 
-	async function openPage(...items: Item[]): Promise<void> {
+	async function openPage(...items: HistoryItem[]): Promise<void> {
 		await createPage();
 		http.expectOne(suppliersUrl).flush(suppliers);
 		await respond(historyRequest(), ...items);
@@ -161,9 +152,10 @@ describe("HistoryPage", () => {
 	])("HC1: the page at %s links to %s", async (from, to) => {
 		const harness = await RouterTestingHarness.create(from);
 
-		const links = [...harness.routeNativeElement!.querySelectorAll("a")];
+		harness.routeNativeElement!.querySelector("a")!.click();
+		await harness.fixture.whenStable();
 
-		expect(links.map((link) => link.getAttribute("href"))).toEqual([to]);
+		expect(TestBed.inject(Router).url).toBe(to);
 	});
 
 	it("HC1: has a start date, an end date and a supplier multi-select, all empty", async () => {
@@ -365,6 +357,17 @@ describe("HistoryPage", () => {
 		expect(await rows()).toHaveLength(1);
 	});
 
+	it("HC1: filters still work after a date with no next day", async () => {
+		await openPage();
+		await typeDate("End date", "9/13/275760");
+		expect(historyRequests()).toHaveLength(0);
+		expect(errors()).toEqual(["History is unavailable, please try again later"]);
+
+		await typeDate("End date", "11/23/2026");
+
+		expect(historyRequests()).toHaveLength(1);
+	});
+
 	it.each(failures)("HC1: shows a message when the suppliers fail with %s", async (_, fail) => {
 		await createPage();
 		const request = http.expectOne(suppliersUrl);
@@ -378,7 +381,7 @@ describe("HistoryPage", () => {
 		expect(await rows()).toHaveLength(1);
 	});
 
-	it("leaving the page cancels its requests", async () => {
+	it("HC1: leaving the page cancels its requests", async () => {
 		await createPage();
 		const requests = [http.expectOne(suppliersUrl), historyRequest()];
 		expect(requests.map((request) => request.cancelled)).toEqual([false, false]);

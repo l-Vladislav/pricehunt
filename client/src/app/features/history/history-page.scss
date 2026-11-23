@@ -1,0 +1,15 @@
+main {
+	max-width: 1000px;
+	margin: 0 auto;
+	padding: 16px;
+}
+
+.fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 0 16px;
+}
+
+.error {
+	color: var(--mat-sys-error);
+}
