@@ -135,6 +135,17 @@ describe("SearchStreamClient", () => {
 		expect(await recording.next()).toBe("complete");
 	});
 
+	it("SC2: emits every event of one chunk", async () => {
+		const body = new FakeBody();
+		respondWith(body.stream);
+		const recording = new Recording(client);
+
+		body.send(Uint8Array.of(...bytes(started), ...bytes(quote)));
+
+		expect(await recording.next()).toEqual(started);
+		expect(await recording.next()).toEqual(quote);
+	});
+
 	it("SC2: emits events once when chunks split them, also inside a character", async () => {
 		const body = new FakeBody();
 		respondWith(body.stream);
@@ -184,14 +195,15 @@ describe("SearchStreamClient", () => {
 	it.each([
 		[
 			"the first message of the first field",
+			400,
 			'{"title":"Invalid","errors":{"FromDate":["First.","Second."],"ToDate":["Third."]}}',
 			"First.",
 		],
-		["the title when there are no errors", '{"title":"Bad request"}', "Bad request"],
-		["the status when JSON has no message", "{}", "HTTP 400"],
-		["the status when the body is not JSON", "<html>", "HTTP 400"],
-	])("SC2: a non-2xx response errors with %s", async (_, body, message) => {
-		respondWith(body, 400);
+		["the title when there are no errors", 400, '{"title":"Bad request"}', "Bad request"],
+		["the status when JSON has no message", 404, "{}", "HTTP 404"],
+		["the status when the body is not JSON", 500, "<html>", "HTTP 500"],
+	])("SC2: a non-2xx response errors with %s", async (_, status, body, message) => {
+		respondWith(body, status);
 
 		expect(await new Recording(client).next()).toEqual(new Error(message));
 	});
