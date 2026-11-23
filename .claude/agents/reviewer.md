@@ -23,6 +23,8 @@ Do one full pass: read every file in scope end to end and check all angles toget
    - **Test quality:** tests that pass trivially, use real time, assert on mocks only, or were weakened.
      Would each test fail without the change, also in CI? Both jobs run in the `TZ` set in `ci.yml` (UTC if none is set);
      client tests run in jsdom.
+   - **Mutation check:** name a concrete code change that breaks a guarantee of the task and still passes every test
+     (e.g. the linked token instead of `CancellationToken.None`). Check the PR's list of tried breaks for gaps.
    - **Logic:** the order of steps where it matters, contradictions with the docs or the framework, and leftovers that serve
      no purpose. Mark those "remove".
 4. Don't modify files. You may run `dotnet test --solution server/PriceHunt.sln` / `npx ng test --watch=false` to confirm a suspicion.

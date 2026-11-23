@@ -14,6 +14,9 @@
 - [ ] `npx ng test --watch=false`, `npx ng build`, `npx ng lint`, `npx prettier --check .` green (if client changed)
 - [ ] Ran the app and checked the behaviour manually (if user-facing)
 
+## Mutation check
+<!-- each break tried on purpose → the test that failed; for tasks with code -->
+
 ## Review
 <!-- reviewer-agent findings and how each was handled -->
 
