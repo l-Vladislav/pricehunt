@@ -33,7 +33,7 @@ npx prettier --write .                            # formatting: double quotes, t
 5. Run the full test suite for the affected project(s) and a build. All must be green.
 6. Update the task status in `docs/plan.md` and add a row to `docs/ai-usage.md`.
 7. Show the owner what will be committed (files + commit message) and **wait for approval**.
-   Only then commit on the task branch, push it and open a PR titled `Txx: <summary> (<req IDs>)` using the template.
+   Only then commit on the task branch, push it and open a PR titled as in "Git & PR rules", using the template.
 
 ## Git & PR rules
 - Commit, push, create repos or open PRs only when the owner approves. Approval for one commit doesn't cover the next.
@@ -45,8 +45,13 @@ npx prettier --write .                            # formatting: double quotes, t
   Tests always go in the same PR as the code they test.
 - Generated files are marked `linguist-generated` in `.gitattributes`, so GitHub collapses them in the diff. Add new generated paths there.
 - Delete template placeholders (demo pages, sample tests, CLI READMEs) as soon as real code replaces them.
-- PRs are squash-merged. The PR title becomes the commit on `main`, so write it as a commit message: `Txx: <summary> (<req IDs>)`.
-  Inside a PR, commit in small steps (failing tests, implementation, review fixes). They stay visible in the PR and in the squash commit body.
+- Commit messages and PR titles are `<prefix>: <summary>`. The prefix is the task ID (`T05a`), or `chore`, `fix` or `docs`
+  for non-task work, matching the branch. The summary is a short imperative phrase in lowercase (`add`, `fix`, `move`),
+  at most about 50 characters, with no period at the end. A task's PR title ends with its requirement IDs if it has any,
+  written as ranges where `docs/plan.md` does: `T02: add simulated suppliers (S1–S4)`. GitHub appends `(#N)` on merge.
+- Add a commit body only when the reason isn't clear from the diff. A PR body always follows the template.
+- PRs are squash-merged, so the PR title becomes the commit on `main`. Inside a PR, commit in small steps
+  (failing tests, implementation, review fixes). They stay visible in the PR and in the squash commit body.
 - Never merge a PR. The owner reviews and merges.
 
 ## Server rules (C#)
