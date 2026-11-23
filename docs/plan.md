@@ -153,7 +153,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T03a](tasks/T03a-orchestrator-core.md) | Search orchestrator: stream, timeout, isolation | SS1–SS4, P2, I1–I3 | [x] |
 | [T03b](tasks/T03b-orchestrator-cancellation.md) | Search orchestrator: cancellation, races at the deadline | SS3, SS5, P1, I1, I3, I7 | [x] |
 | [T04](tasks/T04-persistence.md) | EF Core model, auto-migrate, recording searches and responses | P1–P3, I3, I5, I7 | [x] |
-| [T05a](tasks/T05a-search-stream.md) | SSE search endpoint: streaming, timeout, cancellation | SS2–SS5, SC6, I1, I2, I7 | [~] |
+| [T05a](tasks/T05a-search-stream.md) | SSE search endpoint: streaming, timeout, cancellation | SS2–SS5, SC6, I1, I2, I7 | [x] |
 | [T05b](tasks/T05b-search-validation.md) | SSE search endpoint: validation, trimming | SS1, I6 | [ ] |
 | [T06](tasks/T06-history-endpoint.md) | History endpoint: filters, sorting, paging | HS1, HS2, I4–I6 | [ ] |
 | [T07](tasks/T07-client-stream.md) | Client SSE-over-fetch stream client | SC2, SC6 | [ ] |
