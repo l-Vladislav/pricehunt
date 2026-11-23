@@ -1,11 +1,12 @@
 # T08b: Search page
-**Reqs:** SC1, SC2, SC4, SC5, SC6
+**Reqs:** SC1, SC2, SC4, SC5, SC6, SS5
 
 ## Goal
 The `SearchPage` component: the form, the live result list and the progress line, on top of `SearchStore` (T08a).
 
 ## Design
-- `SearchPage` is the default route (`''`).
+- `SearchPage` is the default route (`''`), lazy-loaded: with Material in the initial bundle the build exceeds its 500 kB budget.
+- It provides `SearchStore` (T08a), so leaving the page aborts the search (SS5).
 - Form: reactive forms with `Validators.required` on the four fields, built from Material form fields, two datepickers
   and a checkbox per supplier (ADR-0002). Suppliers come from `SuppliersApi`, all checked by default.
   At least one supplier must stay checked: the API treats an empty list as "all", which is not what the user chose.
@@ -32,5 +33,9 @@ The `SearchPage` component: the form, the live result list and the progress line
 - SC6: submit, push A's `started`, click the Search button again (it is enabled) → the fake stream client got a second call and A's Subject was unsubscribed.
 - The supplier list request fails (`HttpTestingController` error) → "Server not reachable" is shown.
 - SC5: while running, the number of skeleton rows is `total - responded`; after `ended` there are none.
+- SC1: the page is the default route.
+- SC1: a blank location and a start date after the end date are sent as entered, so the server's 400 can be shown.
+- SC5: a stream error shows its message instead of the progress line and keeps the results.
+- SS5: leaving the page aborts the running search. It also cancels the supplier list request.
 
 Manual check with `npm start`: both datepickers open (tests don't load `app.config.ts`, which provides the date adapter).
