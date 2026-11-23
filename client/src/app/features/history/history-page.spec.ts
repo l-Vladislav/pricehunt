@@ -674,6 +674,28 @@ describe("HistoryPage", () => {
 		},
 	);
 
+	it.each([
+		[5, "1", "1 – 5 of 5"],
+		[20, "1", "1 – 20 of 20"],
+		[21, "2", "21 – 21 of 21"],
+	])("HC2: a page past the last of %i rows loads the last one", async (total, lastPage, range) => {
+		await openPageOf45();
+		await goToLastOf3Pages();
+		await (await paginator()).goToPreviousPage();
+		await respondWithTotal(historyRequest(), 45, item);
+		await (await paginator()).goToNextPage();
+
+		await respondWithTotal(historyRequest(), total);
+
+		const request = historyRequest();
+		expect(params(request, "page")).toEqual([lastPage]);
+		expect(elements(".skeleton-row")).toHaveLength(20);
+		expect(emptyMessages()).toEqual([]);
+		await respondWithTotal(request, total, item);
+		expect(await rangeLabel()).toBe(range);
+		expect(await rows()).toHaveLength(1);
+	});
+
 	it("HC2: an empty page shows a message", async () => {
 		await openPage();
 

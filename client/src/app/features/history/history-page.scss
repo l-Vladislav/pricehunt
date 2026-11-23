@@ -13,3 +13,13 @@ main {
 .error {
 	color: var(--mat-sys-error);
 }
+
+// Columns and height stay the same when skeleton rows replace the rows.
+table {
+	width: 100%;
+	table-layout: fixed;
+}
+
+tr[mat-row] {
+	height: var(--row-height);
+}

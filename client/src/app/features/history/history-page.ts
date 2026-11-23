@@ -1,6 +1,6 @@
 import { CurrencyPipe, DatePipe } from "@angular/common";
 import { ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { takeUntilDestroyed, toObservable } from "@angular/core/rxjs-interop";
 import {
 	AbstractControl,
 	FormControl,
@@ -11,12 +11,21 @@ import {
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
+import { MatPaginatorModule } from "@angular/material/paginator";
 import { MatSelectModule } from "@angular/material/select";
+import { MatSortModule, Sort } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
 import { RouterLink } from "@angular/router";
-import { catchError, defer, of, startWith, Subject, switchMap } from "rxjs";
+import { catchError, defer, of, switchMap, tap } from "rxjs";
 import { HistoryApi, HistoryItem, HistoryQuery } from "../../core/history-api";
 import { Supplier, SuppliersApi } from "../../core/suppliers-api";
+
+interface HistoryView {
+	filters: { startDate: Date | null; endDate: Date | null; supplierIds: string[] };
+	sortBy: HistoryQuery["sortBy"];
+	sortDir: HistoryQuery["sortDir"];
+	pageIndex: number;
+}
 
 @Component({
 	selector: "app-history-page",
@@ -26,7 +35,9 @@ import { Supplier, SuppliersApi } from "../../core/suppliers-api";
 		MatDatepickerModule,
 		MatFormFieldModule,
 		MatInputModule,
+		MatPaginatorModule,
 		MatSelectModule,
+		MatSortModule,
 		MatTableModule,
 		ReactiveFormsModule,
 		RouterLink,
@@ -39,9 +50,13 @@ export class HistoryPage {
 	private readonly historyApi = inject(HistoryApi);
 
 	protected readonly columns = ["date", "route", "supplier", "price", "responseTime"];
+	protected readonly pageSize = 20;
+	protected readonly skeletonRows = new Array<undefined>(this.pageSize);
 	protected readonly suppliers = signal<Supplier[]>([]);
 	protected readonly suppliersFailed = signal(false);
 	protected readonly items = signal<HistoryItem[]>([]);
+	protected readonly total = signal(0);
+	protected readonly loading = signal(true);
 	protected readonly historyFailed = signal(false);
 	protected readonly wrongDateOrder = signal(false);
 
@@ -53,7 +68,13 @@ export class HistoryPage {
 		},
 		startNotAfterEnd,
 	);
-	private readonly filterChanges = new Subject<void>();
+	// Keeps the last valid filters, so sorting and paging work while the form is invalid.
+	protected readonly view = signal<HistoryView>({
+		filters: this.form.getRawValue(),
+		sortBy: "date",
+		sortDir: "desc",
+		pageIndex: 0,
+	});
 
 	constructor() {
 		inject(SuppliersApi)
@@ -64,17 +85,30 @@ export class HistoryPage {
 				error: () => this.suppliersFailed.set(true),
 			});
 
-		this.filterChanges
+		toObservable(this.view)
 			.pipe(
-				startWith(undefined),
-				switchMap(() =>
-					// Caught here, not on the outer stream: that would end it and later filters would do nothing.
-					defer(() => this.historyApi.getHistory(this.query())).pipe(catchError(() => of(null))),
+				tap(() => {
+					this.loading.set(true);
+					this.items.set([]);
+				}),
+				switchMap((view) =>
+					// Caught here, not on the outer stream: that would end it and later changes would do nothing.
+					defer(() => this.historyApi.getHistory(this.query(view))).pipe(
+						catchError(() => of(null)),
+					),
 				),
 				takeUntilDestroyed(),
 			)
 			.subscribe((result) => {
-				this.items.set(result?.items ?? []);
+				if (result) {
+					this.items.set(result.items);
+					this.total.set(result.total);
+					// The total on screen was out of date, e.g. Next was clicked before a filter's response.
+					if (result.total > 0 && result.items.length === 0) {
+						this.showPage(Math.ceil(result.total / this.pageSize) - 1);
+					}
+				}
+				this.loading.set(false);
 				this.historyFailed.set(result === null);
 			});
 	}
@@ -83,20 +117,34 @@ export class HistoryPage {
 	protected applyFilters(): void {
 		this.wrongDateOrder.set(this.form.hasError("dateOrder"));
 		if (this.form.valid) {
-			this.filterChanges.next();
+			this.view.update((view) => ({ ...view, filters: this.form.getRawValue(), pageIndex: 0 }));
 		}
 	}
 
-	private query(): HistoryQuery {
-		const { startDate, endDate, supplierIds } = this.form.getRawValue();
+	protected sort({ active, direction }: Sort): void {
+		this.view.update((view) => ({
+			...view,
+			sortBy: active as HistoryQuery["sortBy"],
+			// Never empty: matSortDisableClear.
+			sortDir: direction as HistoryQuery["sortDir"],
+			pageIndex: 0,
+		}));
+	}
+
+	protected showPage(pageIndex: number): void {
+		this.view.update((view) => ({ ...view, pageIndex }));
+	}
+
+	private query({ filters, sortBy, sortDir, pageIndex }: HistoryView): HistoryQuery {
+		const { startDate, endDate, supplierIds } = filters;
 		return {
 			startDate: startDate ? localMidnight(startDate).toISOString() : undefined,
 			endDate: endDate ? localMidnight(endDate, 1).toISOString() : undefined,
 			supplierIds,
-			sortBy: "date",
-			sortDir: "desc",
-			page: 1,
-			pageSize: 20,
+			sortBy,
+			sortDir,
+			page: pageIndex + 1,
+			pageSize: this.pageSize,
 		};
 	}
 }
