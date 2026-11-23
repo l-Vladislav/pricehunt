@@ -1,5 +1,5 @@
 # T08b: Search page
-**Reqs:** SC1, SC2, SC5
+**Reqs:** SC1, SC2, SC4, SC5
 
 ## Goal
 The `SearchPage` component: the form, the live result list and the progress line, on top of `SearchStore` (T08a).
@@ -20,5 +20,6 @@ The `SearchPage` component: the form, the live result list and the progress line
 - SC1: the form shows from/to location, from/to date and every supplier checked. Unchecking all of them disables Search.
 - SC1: submitting starts a search with the form values; a date picked as 23 Nov is sent as `"fromDate":"2026-11-23"`.
 - SC2: rows appear as events arrive, in price order.
+- SC4: after a re-order, each supplier's row is the same DOM node as before (`track` reuses nodes; T09 relies on it).
 - SC5: the progress line shows "N of M suppliers responded", then "Completed" or "Timed out".
 - SC5: while running, the number of skeleton rows is `total - responded`; after `ended` there are none.

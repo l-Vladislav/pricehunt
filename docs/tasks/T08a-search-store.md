@@ -1,5 +1,5 @@
 # T08a: Search store
-**Reqs:** SC2, SC3, SC5, SC6 · **Interpretations:** I1
+**Reqs:** SC2, SC3, SC5, SC6, SS5 · **Interpretations:** I1
 
 ## Goal
 A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T07) and holds its state. No UI yet (T08b).

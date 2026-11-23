@@ -32,9 +32,9 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
    (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03).
    For each event it persists first (with `CancellationToken.None`, so a received response is never lost), then yields it to the HTTP stream.
    This is the only place that touches `DbContext`. When the token fires, the loop exits at once, without waiting for pending suppliers,
-   and a result that completes after that is dropped.
-4. Ending the search: all suppliers finished → `Completed`. Timeout fired → `TimedOut`. `RequestAborted` fired → `Cancelled`, then the
-   `OperationCanceledException` is rethrown to the caller (never swallowed). Suppliers that never answered get no response row (I3).
+   and a result that completes after that is dropped before it is stored. A stored result is always yielded.
+4. Ending the search: all suppliers finished → `Completed`. Timeout fired → `TimedOut`. `RequestAborted` fired → `Cancelled`, and the
+   `OperationCanceledException` propagates to the caller (never caught or swallowed). Suppliers that never answered get no response row (I3).
 5. The final status is written once, with `CancellationToken.None`. On normal completion it is written before `ended` is yielded,
    so the DB is final when the stream closes. A `finally` block also covers a consumer that stops enumerating early: it cancels
    the linked CTS, awaits all supplier tasks and writes `Cancelled` if no status was written yet.
@@ -97,8 +97,8 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T06](tasks/T06-history-endpoint.md) | History endpoint: filters, sorting, paging | HS1, HS2, I4–I6 | [ ] |
 | [T07](tasks/T07-client-stream.md) | Client SSE-over-fetch stream client | SC2, SC6 | [ ] |
 | [T07b](tasks/T07b-material-setup.md) | Angular Material setup, date adapter, `toIsoDate` (ADR-0002) | — | [ ] |
-| [T08a](tasks/T08a-search-store.md) | Search store: sorted results, progress, stale guard | SC2, SC3, SC5, SC6, I1 | [ ] |
-| [T08b](tasks/T08b-search-page.md) | Search page: form, result list, progress line | SC1, SC2, SC5 | [ ] |
+| [T08a](tasks/T08a-search-store.md) | Search store: sorted results, progress, stale guard | SC2, SC3, SC5, SC6, SS5, I1 | [ ] |
+| [T08b](tasks/T08b-search-page.md) | Search page: form, result list, progress line | SC1, SC2, SC4, SC5 | [ ] |
 | [T09](tasks/T09-no-flicker.md) | Smooth re-ordering (FLIP) | SC4 | [ ] |
 | [T10a](tasks/T10a-history-filters.md) | History page: route, API client, filters, table | HC1, HC2, I5 | [ ] |
 | [T10b](tasks/T10b-history-table.md) | History page: sorting, paging, skeleton | HC2 | [ ] |

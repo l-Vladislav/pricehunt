@@ -17,7 +17,7 @@ Both projects start with one command each. The API serves the supplier list the 
 ## Acceptance criteria
 - `cd server && dotnet run --project PriceHunt.Api` → `GET http://localhost:5080/api/suppliers` returns the seven suppliers.
 - `cd client && npm start` works on a clean clone (`prestart` runs `npm install`).
-- `dotnet test --solution server/PriceHunt.sln`, `npx ng test --watch=false`, `npx ng lint` and `npx prettier --check .` pass.
+- Everything in `AGENTS.md` "Done means" passes.
 
 ## Tests (integration: `PriceHuntApiFactory`)
 - S1: `GET /api/suppliers` returns 200 with seven suppliers, each with an id and a name.

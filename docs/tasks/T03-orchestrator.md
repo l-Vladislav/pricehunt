@@ -29,7 +29,8 @@ public interface ISearchRecorder {
 ```
 - `SupplierInfo(string Id, string Name)` comes from the catalog (T01).
 - The dates are nullable only for validation (T05b). Past the endpoint they are always set, and the orchestrator builds `SearchCriteria` from them.
-- Empty or null `SupplierIds` means all suppliers. The orchestrator resolves the list, so T05a passes the request through as is.
+- Empty or null `SupplierIds` means all suppliers. Otherwise the orchestrator filters the registered suppliers by the ids, so the
+  selection is in catalog order (T02's fake random sequence relies on it) and a repeated id counts once. T05a passes the request through as is.
 - The orchestrator measures `ResponseTimeMs` with `TimeProvider.GetElapsedTime` and sets `ReceivedAtUtc` and `createdAtUtc` from `TimeProvider.GetUtcNow()`.
 - `StartAsync` runs before any supplier starts, so response rows always have their search row.
 
@@ -40,15 +41,17 @@ public interface ISearchRecorder {
 - `RunAsync` marks `ct` with `[EnumeratorCancellation]`, so a token passed through `WithCancellation` by the SSE writer arrives
   (without it, CS8425 fails the `-warnaserror` build).
 - One loop over `Task.WhenEach(tasks)` with the linked token yields events in completion order. When the token fires, the loop
-  exits at once (it doesn't wait for pending suppliers). It also checks the token before yielding, so a late result is dropped.
+  exits at once (it doesn't wait for pending suppliers).
 - C# doesn't allow `yield return` inside a `try` that has a `catch` (CS1626). So enumerate by hand: `GetAsyncEnumerator(linkedToken)`,
   wrap only `MoveNextAsync()` in `try/catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)`
   to end with `TimedOut`, and `yield` outside that `try`. A caller cancellation is not caught: it propagates after the final write.
-- Each event is persisted first (`CancellationToken.None`), then yielded.
+- For each completed task, in this order: check the linked token (a result that completes after the deadline is dropped, not
+  stored), persist it (`CancellationToken.None`), yield it. Once persisted, a result is always yielded and counted, even if the
+  deadline passes during the write, so the DB rows always match `ended.responded`.
 - Outcome:
   - all done → `Completed`;
   - timeout → `TimedOut`;
-  - caller cancelled → `Cancelled`, then the `OperationCanceledException` is rethrown.
+  - caller cancelled → `Cancelled` (written in the `finally`), and the `OperationCanceledException` propagates.
   Pending suppliers are cancelled and produce no event and no record (I3).
 - The final status is written once, with `CancellationToken.None`. On normal completion: write it, then yield `ended`.
 - A `finally` block covers a consumer that stops enumerating early. It cancels the linked CTS (otherwise awaiting the hanging supplier
@@ -72,8 +75,11 @@ A test that checks `ResponseTimeMs` advances exactly to that supplier's completi
   and the hanging task observed cancellation.
 - SS3: all suppliers done before 6 s → `Ended(Completed)`.
 - SS5, I7: caller cancels → enumeration throws `OperationCanceledException`, every supplier observed the token, recorder got `Cancelled`.
-- SS1: only the selected suppliers are queried.
-- SS3: a result that completes after the deadline is **not** yielded (the fake ignores `ct`; fire the timeout first, then complete its TCS).
-- I7: the consumer stops enumerating mid-stream without cancelling the token (what the SSE writer does on disconnect)
+- SS1: only the selected suppliers are queried, in catalog order, and a repeated id starts one call.
+- SS3, I3: the deadline passes while a result is being persisted (fake recorder advances time inside `RecordAsync`) → that result
+  is still yielded and counted, and `responded` equals the number of `RecordAsync` calls.
+- SS3, I3: a result that completes after the deadline is **not** yielded and not recorded (the fake ignores `ct`; fire the timeout first, then complete its TCS).
+- I7: the consumer stops enumerating mid-stream without cancelling the token (e.g. a write to a closed response throws and the writer
+  disposes the enumerator)
   → disposal completes, every supplier observed cancellation, and the recorder gets `Cancelled` exactly once.
 - `started` is yielded only after every supplier's call has been started (needed so integration tests can advance time safely).

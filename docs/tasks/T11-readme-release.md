@@ -15,5 +15,6 @@
 
 ## Release check
 - Fresh `git clone` into a temp dir → both commands work, the DB is created, a search runs end-to-end.
-- `dotnet test --solution server/PriceHunt.sln`, `npx ng test --watch=false`, `npx ng lint` and `npx prettier --check .` are green.
+- Everything in `AGENTS.md` "Done means" is green: `dotnet build server/PriceHunt.sln -warnaserror`, `dotnet test --solution server/PriceHunt.sln`,
+  `npx ng test --watch=false`, `npx ng build`, `npx ng lint`, `npx prettier --check .`.
 - No `pricehunt.db`, `bin/`, `obj/` or `node_modules/` in git.
