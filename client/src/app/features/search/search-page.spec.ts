@@ -1,10 +1,17 @@
 import { HarnessLoader } from "@angular/cdk/testing";
 import { TestbedHarnessEnvironment } from "@angular/cdk/testing/testbed";
-import { HttpTestingController, provideHttpClientTesting } from "@angular/common/http/testing";
+import {
+	HttpTestingController,
+	provideHttpClientTesting,
+	TestRequest,
+} from "@angular/common/http/testing";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonHarness } from "@angular/material/button/testing";
 import { MatCheckboxHarness } from "@angular/material/checkbox/testing";
-import { MatDatepickerInputHarness } from "@angular/material/datepicker/testing";
+import {
+	MatDatepickerInputHarness,
+	MatDatepickerToggleHarness,
+} from "@angular/material/datepicker/testing";
 import { MatFormFieldHarness } from "@angular/material/form-field/testing";
 import { MatInputHarness } from "@angular/material/input/testing";
 import { provideRouter } from "@angular/router";
@@ -88,11 +95,12 @@ describe("SearchPage", () => {
 	}
 
 	async function pickDay(label: string, day: string): Promise<void> {
-		const input = await dateInput(label);
-		// Opens the calendar on November 2026.
-		await input.setValue("11/1/2026");
-		await input.openCalendar();
-		await (await input.getCalendar()).selectCell({ text: day });
+		// Makes the calendar open on November 2026.
+		await (await dateInput(label)).setValue("11/1/2026");
+		const [fromToggle, toToggle] = await loader.getAllHarnesses(MatDatepickerToggleHarness);
+		const toggle = label === "From date" ? fromToggle : toToggle;
+		await toggle.openCalendar();
+		await (await toggle.getCalendar()).selectCell({ text: day });
 	}
 
 	async function fillForm(): Promise<void> {
@@ -211,6 +219,23 @@ describe("SearchPage", () => {
 		]);
 	});
 
+	it("SC1: leaves the blank location and date order rules to the server", async () => {
+		await openPage();
+		await setText("From location", " ");
+		await setText("To location", " ");
+		await pickDay("From date", "30");
+		await pickDay("To date", "23");
+
+		await submit();
+
+		expect(client.calls[0].request).toMatchObject({
+			fromLocation: " ",
+			toLocation: " ",
+			fromDate: "2026-11-30",
+			toDate: "2026-11-23",
+		});
+	});
+
 	it("SC2: rows appear in price order as events arrive", async () => {
 		await openPage();
 		await fillForm();
@@ -326,12 +351,25 @@ describe("SearchPage", () => {
 		expect(events.observed).toBe(false);
 	});
 
-	it("SC1: shows 'Server not reachable' when the supplier list fails to load", async () => {
+	it("leaving the page cancels the supplier list request", async () => {
+		await createPage();
+		const request = http.expectOne(suppliersUrl);
+		expect(request.cancelled).toBe(false);
+
+		fixture.destroy();
+
+		expect(request.cancelled).toBe(true);
+	});
+
+	it.each([
+		["a network error", (r: TestRequest) => r.error(new ProgressEvent("error"))],
+		["a 500", (r: TestRequest) => r.flush(null, { status: 500, statusText: "Server Error" })],
+	])("SC1: shows 'Server not reachable' when the supplier list fails with %s", async (_, fail) => {
 		await createPage();
 		const request = http.expectOne(suppliersUrl);
 		expect(texts(".error")).toEqual([]);
 
-		request.error(new ProgressEvent("error"));
+		fail(request);
 		await fixture.whenStable();
 
 		expect(texts(".error")).toEqual(["Server not reachable"]);

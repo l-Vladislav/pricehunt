@@ -38,8 +38,8 @@
 		<button matButton="filled" type="submit" [disabled]="!canSearch()">Search</button>
 	</form>
 
-	@if (progress(); as progress) {
-		<p class="progress" role="status">{{ progress }}</p>
+	@if (progress(); as text) {
+		<p class="progress" role="status">{{ text }}</p>
 	}
 	@if (store.errorMessage(); as errorMessage) {
 		<p class="error" role="alert">{{ errorMessage }}</p>
