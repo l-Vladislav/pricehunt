@@ -21,11 +21,15 @@ public class SearchOrchestratorTests
 
     private FakeSupplier[] Suppliers(params string[] ids) => [.. ids.Select(id => new FakeSupplier(id, _log))];
 
-    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, IReadOnlyList<string>? supplierIds = null)
+    private static readonly SearchRequest Request =
+        new(SearchId, "Berlin", "Paris", new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 5), SupplierIds: null);
+
+    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, IReadOnlyList<string>? supplierIds = null) =>
+        Start(suppliers, Request with { SupplierIds = supplierIds });
+
+    private IAsyncEnumerator<SearchEvent> Start(FakeSupplier[] suppliers, SearchRequest request)
     {
         var orchestrator = new SearchOrchestrator(suppliers, _recorder, _time);
-        var request = new SearchRequest(
-            SearchId, "Berlin", "Paris", new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 5), supplierIds);
         return orchestrator.RunAsync(request, TestContext.Current.CancellationToken)
             .GetAsyncEnumerator(TestContext.Current.CancellationToken);
     }
@@ -129,6 +133,24 @@ public class SearchOrchestratorTests
         _time.Advance(TimeSpan.FromSeconds(1));
         b.Answer(20m);
         Assert.Equal(new QuoteReceived(SearchId, "b", 20m, 2000), await Next<QuoteReceived>(events));
+
+        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+    }
+
+    [Fact]
+    public async Task SS4_ASupplierCancellingOnItsOwn_IsAFailure_NotTheEndOfTheSearch()
+    {
+        // E.g. an HTTP client timeout inside the supplier: an OperationCanceledException while the search's token is live.
+        var suppliers = Suppliers("a", "b");
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        suppliers[0].Fail(new OperationCanceledException());
+        Assert.Equal(new SupplierFailed(SearchId, "a", 1000), await Next<SupplierFailed>(events));
+
+        suppliers[1].Answer(20m);
+        await Next<QuoteReceived>(events);
 
         await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
     }
@@ -238,8 +260,23 @@ public class SearchOrchestratorTests
 
         Assert.Equal(new QuoteReceived(SearchId, "a", 10m, 1000), await Next<QuoteReceived>(events));
         Assert.Equal(_t0, _recorder.CreatedAtUtc);
+        Assert.Equal(DateTimeKind.Utc, _recorder.CreatedAtUtc?.Kind);
         Assert.Equal(_t0.AddSeconds(3), _recorder.Results[0].ReceivedAtUtc);
+        Assert.Equal(DateTimeKind.Utc, _recorder.Results[0].ReceivedAtUtc.Kind);
         await AssertEnded(events, SearchStatus.Completed, responded: 1, total: 1);
+    }
+
+    [Fact]
+    public async Task SS3_AStartWriteThatOutlastsTheDeadline_StillCompletes_AndTheSearchEndsTimedOut()
+    {
+        // The fake recorder throws if its token fired, so a start write with the linked token fails here.
+        _recorder.OnStart = () => _time.Advance(TimeSpan.FromSeconds(6));
+        await using var events = Start(Suppliers("a"));
+
+        await Next<SearchStarted>(events);
+
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 0, total: 1);
+        Assert.Empty(_recorder.Results);
     }
 
     [Fact]
@@ -252,5 +289,18 @@ public class SearchOrchestratorTests
 
         Assert.Empty(_log.Entries);
         Assert.Empty(_recorder.Statuses);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MissingDate_IsRejectedBeforeAnythingIsWritten(bool missingFromDate)
+    {
+        var request = missingFromDate ? Request with { FromDate = null } : Request with { ToDate = null };
+        await using var events = Start(Suppliers("a"), request);
+
+        await Assert.ThrowsAsync<ArgumentException>(async () => await events.MoveNextAsync());
+
+        Assert.Empty(_log.Entries);
     }
 }
