@@ -18,7 +18,7 @@ dotnet test --solution server/PriceHunt.sln        # Microsoft.Testing.Platform 
 dotnet run --project server/PriceHunt.Api        # http://localhost:5080
 
 # client (Angular 22, from client/)
-npm start                                         # http://localhost:4200, runs npm install first
+npm start                                         # http://localhost:4142, runs npm install first
 npx ng test --watch=false                         # Vitest (npm test also re-runs npm install, slower)
 npx ng build
 npx ng lint                                       # angular-eslint

@@ -1,6 +1,13 @@
+using PriceHunt.Api.Suppliers;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.WithOrigins("http://localhost:4142").AllowAnyHeader().AllowAnyMethod()));
+
 var app = builder.Build();
 
-app.MapGet("/", () => "Hello World!");
+app.UseCors();
+app.MapSupplierEndpoints();
 
 app.Run();
