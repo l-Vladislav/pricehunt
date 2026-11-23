@@ -14,7 +14,8 @@ public static class SearchEndpoints
         return app;
     }
 
-    // The built-in validation has already checked the request. These checks need the catalog or the DB.
+    // The built-in validation has already checked the request. The reused-id check needs the DB,
+    // and the unknown-supplier check sits next to it so every lookup is in one place.
     // Their 400s have the same shape as the built-in ones, keyed by the property name.
     // ct is RequestAborted: a client that disconnects cancels the search (SS5).
     private static async Task<Results<ServerSentEventsResult<SearchEvent>, ValidationProblem>> SearchAsync(
