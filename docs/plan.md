@@ -163,4 +163,4 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T09](tasks/T09-no-flicker.md) | Smooth re-ordering (FLIP) | SC4 | [x] |
 | [T10a](tasks/T10a-history-filters.md) | History page: route, API client, filters, table | HC1, HC2, I4, I5 | [x] |
 | [T10b](tasks/T10b-history-table.md) | History page: sorting, paging, skeleton | HC2 | [x] |
-| [T11](tasks/T11-readme-release.md) | README, clean-clone verification | SS6, D1, D2, D4 | [ ] |
+| [T11](tasks/T11-readme-release.md) | README, clean-clone verification | SS6, D1, D2, D4 | [~] |

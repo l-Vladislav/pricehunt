@@ -64,5 +64,5 @@ Where the PDF is ambiguous, these are my decisions. The README repeats them.
 - Target: .NET 10 (LTS) via `global.json` in the repo root. Angular 22 (standalone, signals, zoneless).
 - API listens on `http://localhost:5080`. Client on `http://localhost:4142`. CORS allows the client origin.
 - SQLite file `pricehunt.db` in the API content root. Not committed.
-- Prices: one currency (USD), stored as integer minor units (cents). Reason: EF Core's SQLite provider cannot translate ORDER BY on `decimal`.
+- Prices: one currency (USD), stored as integer minor units (cents). Reason: they are exact and sorted as plain integers (SQLite has no decimal type).
 - Timestamps are stored as UTC `DateTime`. Reason: EF Core's SQLite provider cannot translate ordering or comparisons on `DateTimeOffset`.
