@@ -1,5 +1,5 @@
 # T08a: Search store
-**Reqs:** SC2, SC3, SC5, SC6, SS5 · **Interpretations:** I1
+**Reqs:** SC2, SC3, SC4, SC5, SC6, SS5 · **Interpretations:** I1
 
 ## Goal
 A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T07) and holds its state. No UI yet (T08b).
@@ -28,12 +28,15 @@ A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T0
 The fake stream client creates one Subject per call and keeps them all, so a test can check that A's was unsubscribed and can
 push events tagged with an old `searchId` into B's Subject.
 - SC2, SC3: results arrive one by one and stay sorted for any arrival order.
+- SC3, SC4: two quotes with the same price arrive as `s2`, then `s1`, and stay in that order (a comparator that breaks ties by id
+  or name fails this).
 - SC6: starting search B while A is running aborts A, and late events from A never reach the state.
 - SC6: after A delivered a quote, starting B empties `results` and resets `responded` and `total` before any event of B arrives.
 - SC6: events with an old `searchId`, `started` included, pushed into B's Subject are ignored (tests the guard
   without `switchMap`).
 - SC5, I1: `responded` counts both quotes and failures.
-- SC5: `ended` sets the final status. A stream error sets `error` and `errorMessage`. A stream that completes without `ended` sets `error` and "Search ended unexpectedly".
+- SC5: `ended` sets the final status, and it stays after the stream then completes (no `errorMessage`): T07's client always
+  completes after `ended`. A stream error sets `error` and `errorMessage`. A stream that completes without `ended` sets `error` and "Search ended unexpectedly".
 - SC5: after a stream error, a new `search()` runs and its events update the state.
 - SS5: destroying the store (its injector) aborts the running stream.
 - `SuppliersApi` calls `/api/suppliers` under `API_BASE_URL` (`HttpTestingController`).

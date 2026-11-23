@@ -15,6 +15,6 @@ Use the built-in Minimal API validation (`builder.Services.AddValidation()`), no
   the same shape as the built-in validation, so the client shows the message (T07).
 
 ## Tests (integration: `PriceHuntApiFactory`)
-- SS1: each invalid request → 400 ProblemDetails: missing location, missing date, `fromDate > toDate`, unknown supplier id, empty `searchId`, reused `searchId`.
+- SS1: each invalid request → 400 ProblemDetails: missing location, whitespace-only location, missing date, `fromDate > toDate`, unknown supplier id, empty `searchId`, reused `searchId`.
 - SS1: empty `supplierIds` → `started` lists all 7 suppliers. Two ids → only those two.
 - I6: locations with surrounding spaces are stored trimmed.

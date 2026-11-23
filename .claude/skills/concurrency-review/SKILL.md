@@ -22,9 +22,9 @@ Read the changed files, then answer **every** item with ✅, ❌ + file:line, or
       streamed. Each result is persisted (with `CancellationToken.None`), then yielded; a stored one is always yielded.
 - [ ] Each outcome in `docs/plan.md`, "Concurrency model", step 4 is implemented as written: `Completed`, `TimedOut`, and
       `Cancelled` (written in the `finally`) with its `OperationCanceledException` propagating uncaught, also during the last write.
-- [ ] A `finally` block cancels the linked CTS and awaits all supplier tasks (`SuppressThrowing`) before the method returns,
+- [ ] A `finally` block cancels the linked CTS with `Cancel()` (T03a) and awaits all supplier tasks (`SuppressThrowing`) before the method returns,
       also when the consumer stops enumerating early. No unobserved task exceptions.
-- [ ] `DbContext` is touched by one consumer only. The final status write uses `CancellationToken.None`.
+- [ ] `DbContext` is touched by one consumer only. Every recorder write, `StartAsync` included, uses `CancellationToken.None`.
 - [ ] Terminal status is exactly one of Completed / TimedOut / Cancelled, written exactly once, in every path (including exceptions).
 - [ ] `CancellationTokenSource` instances are disposed.
 - [ ] No `async void`, `.Result`, `.Wait()`, `Thread.Sleep`, fire-and-forget.

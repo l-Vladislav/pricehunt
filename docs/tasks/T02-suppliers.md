@@ -18,7 +18,8 @@ public interface ISupplier {
 - The simulated suppliers ignore `criteria`. It is there because a real supplier interface would need it (S1: "common interface").
 - The supplier only returns a price. The orchestrator (T03a) measures the response time and the timestamp with `TimeProvider`.
 - `IRandomSource` has one method, `double NextDouble()`. Production wraps `Random.Shared`. Tests use a fake that returns a fixed sequence and starts over when it runs out.
-- `SimulatedSupplier(id, name, SupplierBehavior, TimeProvider, IRandomSource)`.
+- `SimulatedSupplier(id, name, SupplierBehavior, TimeProvider, IRandomSource)`, with a public `Behavior` property for the S1 test.
+  `SupplierInfo` stays `(Id, Name)`: the behaviour is not part of the API contract.
   It draws everything before the first `await`, in this order: delay, failure roll (flaky only), price. The price is drawn even if the
   roll says fail, so every supplier uses a fixed number of values. The hanging supplier draws nothing.
   Supplier calls start in catalog order, so the fake's sequence maps to suppliers in a known order.
@@ -34,6 +35,7 @@ public interface ISupplier {
 
 ## Tests (component: `SimulatedSupplier` + FakeTimeProvider + fake random)
 Kept small on purpose. Delays, prices and failures are exercised end to end in T05a.
+- S1: the registered `IEnumerable<ISupplier>` has seven `SimulatedSupplier`s in catalog order: 5 Normal, 1 Flaky, 1 Hanging.
 - S4: the hanging supplier doesn't complete when time advances 1 h, and throws `OperationCanceledException` as soon as `ct` is cancelled.
 - S3: the flaky supplier throws when the roll is below 0.3 and returns a price otherwise.
 - S2: a normal supplier returns only after its delay has elapsed. With the lowest and highest random values, delay and price stay within bounds.

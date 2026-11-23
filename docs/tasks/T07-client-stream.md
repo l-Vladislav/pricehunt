@@ -16,7 +16,7 @@ It uses `fetch` with POST and parses the SSE `ReadableStream`. Unsubscribe → `
   It handles events split across chunks, several events in one chunk, and `\r\n`.
 - The Observable errors on non-2xx and completes when the stream ends. The error message is the first message of the first field
   in the ProblemDetails `errors` map, else its `title`, else `HTTP <status>`. A body that is not JSON also gives `HTTP <status>`.
-  A rejected `fetch` (API not running) errors with "Server not reachable".
+  A rejected `fetch` (API not running) errors with "Server not reachable". A read that fails mid-stream errors with "Connection lost".
 - Do **not** use `EventSource`: it is GET-only and auto-reconnects, which would restart the search.
 
 ## Tests (Vitest)
@@ -24,4 +24,4 @@ Delete `client/src/app/app.spec.ts` once these exist.
 - SC2: the parser handles all three chunking cases, and each event is emitted as soon as its chunk is read.
 - SC6: unsubscribing calls `abort()`.
 - A non-2xx response → Observable error with the message, for each case: `errors` present, only `title`, a body that is not JSON.
-- A rejected `fetch` → Observable error with "Server not reachable".
+- A rejected `fetch` → Observable error with "Server not reachable". A body whose reader rejects mid-stream → "Connection lost".

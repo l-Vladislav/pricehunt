@@ -13,7 +13,7 @@
   - `fromLocation`/`toLocation`: trimmed, then case-insensitive equality (I6). Empty after trimming = no filter. SQLite `lower()` folds ASCII only, which is fine here.
 - `sortBy` whitelist: `date|route|supplier|price|responseTime`, `sortDir`: `asc|desc`. Default: `date desc`, newest first. `date` is the search timestamp (I4), `route` is from then to location, `supplier` is the supplier name. Failed rows (null price) sort last for both directions of `price`. Add a stable secondary sort by `Id` ascending, for both directions.
 - `startDate >= endDate` → 400.
-- `page` starts at 1. `pageSize` is 1..100, default 20.
+- `page` is 1..1,000,000 (the cap keeps `(page - 1) * pageSize` inside `int`). `pageSize` is 1..100, default 20.
 - Validation uses the same built-in Minimal API validation as T05b (`[AsParameters]` with `[AllowedValues]` and `[Range]`). Invalid input → 400.
 - `HistoryQuery` is a record whose optional parameters have default values (`int Page = 1`). On a class, a non-nullable property
   with an initializer still counts as required, so `/api/history` without `page` would return 400.
@@ -31,6 +31,6 @@ Seed rows through `AppDbContext` in the factory's database, then call the endpoi
 - Sorting by every column, asc and desc, returns the right order (runs in SQLite, so client-side evaluation or a translation error fails the test).
 - Paging: `total` is correct, pages don't overlap, the last page is partial.
 - No query string at all → 200 with the defaults (`date desc`, page 1, 20 items).
-- Invalid `sortBy`, `page < 1`, `pageSize` out of range, `startDate >= endDate`, a date that can't be parsed → 400.
+- Invalid `sortBy`, invalid `sortDir`, `page` out of range, `pageSize` out of range, `startDate >= endDate`, a date that can't be parsed → 400.
 - I4: `date` in the JSON is UTC and ends with `Z`.
 - End to end: run a search through `POST /api/search`, advancing as T05a does (5 s, read the 6 results, then 1 s and read `ended`), then the same search's rows appear in `GET /api/history`.

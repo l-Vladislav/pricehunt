@@ -9,6 +9,7 @@ Add Angular Material with a theme, ready for T08b and T10b. No feature code.
   Review what the schematic changed and keep only what is needed.
 - The app stays zoneless. Recent Material versions don't need `@angular/animations`: if the schematic adds `provideAnimationsAsync()`
   or that package, remove them unless the build needs them.
+- Set `<title>` in `src/index.html` to `PriceHunt` (the scaffold says `Client`).
 - `provideNativeDateAdapter()` in `app.config.ts` and in the test providers file below (TestBed never loads `app.config.ts`).
   Without a `DateAdapter`, every datepicker throws.
 - A `toIsoDate(date)` helper in `core/` turns a picked date into `yyyy-MM-dd` from its local year, month and day.

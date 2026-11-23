@@ -33,9 +33,14 @@ public interface ISearchRecorder {
 - Empty or null `SupplierIds` means all suppliers. Otherwise the orchestrator filters the registered suppliers by the ids, so the
   selection is in catalog order (T02's fake random sequence relies on it) and a repeated id counts once. `StartAsync` gets this
   resolved list, not `request.SupplierIds`, so `SearchSuppliers` never sees a duplicate key. T05a passes the request through as is.
-- The orchestrator measures `ResponseTimeMs` with `TimeProvider.GetElapsedTime` and sets `ReceivedAtUtc` and `createdAtUtc` from `TimeProvider.GetUtcNow()`.
+- The orchestrator measures `ResponseTimeMs` with `TimeProvider.GetElapsedTime` from a timestamp taken after `StartAsync`, right
+  before the supplier calls start (a slow start write doesn't count as response time), and sets `ReceivedAtUtc` and `createdAtUtc` from `TimeProvider.GetUtcNow()`.
+- Create the timeout CTS first, then await `StartAsync` with `CancellationToken.None`, so the start write (which can wait on the
+  recorder's gate, T04) counts toward the 6 s (SS3), and a client that leaves during it still gets a search row (P1, T03b).
 - `StartAsync` is awaited before any supplier starts and before the `try/finally`, so response rows always have their search row,
   and a failed start (e.g. a duplicate `searchId`) starts no supplier and writes no status over another search's row.
+- The supplier tasks are created right before the `try`, and `started` is yielded inside it: a consumer that stops at `started`
+  still runs the `finally` (T03b's I7 test).
 
 ## Design (see plan.md, "Concurrency model")
 - Timeout CTS = `new CancellationTokenSource(TimeSpan.FromSeconds(6), timeProvider)`, linked with the caller `ct`. Keep track of **which** one fired.
@@ -58,21 +63,24 @@ public interface ISearchRecorder {
 - Pending suppliers are cancelled and produce no event and no record (I3).
 - The final status is written once, with `CancellationToken.None`, before `ended` is yielded.
 - A `finally` block cancels the linked CTS (otherwise awaiting the hanging supplier never ends) and awaits all supplier tasks.
-  Await them with `((Task)Task.WhenAll(tasks)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing)`: no fire-and-forget, and their
+  Await the supplier tasks with `((Task)Task.WhenAll(tasks)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing)`: no fire-and-forget, and their
   cancellations don't hide the original exception. The cast matters: on `Task<T>`, `SuppressThrowing` throws
   `ArgumentOutOfRangeException` (CA2261). T03b adds the `Cancelled` write to this block.
+  Cancel with `Cancel()`, not `CancelAsync()`: `Cancel()` runs the suppliers' callbacks before it returns. With `CancelAsync()`
+  they run on the thread pool, and the T03b disposal test no longer fails when the `finally` skips the await (checked in a spike).
 
 ## Acceptance criteria
 - No `async void`, `.Result`, `.Wait()`, or fire-and-forget `Task.Run`.
-- Every recorder write after `StartAsync` uses `CancellationToken.None`.
+- Every recorder write, `StartAsync` included, uses `CancellationToken.None`.
 
 ## Tests (component: FakeTimeProvider, fake suppliers backed by controllable TaskCompletionSource)
 These fakes are shared with T03b.
 - Fake suppliers cancel their TCS when `ct` fires (`ct.Register(() => tcs.TrySetCanceled(ct))`), otherwise the `finally` waits forever.
   Test TCSs use the default options, without `RunContinuationsAsynchronously`, so a completed fake is queued in `Task.WhenEach`
   before `TrySetResult` returns.
-- The fake recorder calls `ct.ThrowIfCancellationRequested()` on entry to every method and again after any time it advances, as EF
-  does. A write that gets the linked token instead of `CancellationToken.None` then fails the tests here and in T03b.
+- The fake recorder calls `ct.ThrowIfCancellationRequested()` on entry to every method and again after the test's hook ran (the hook
+  may advance time or cancel the caller's CTS), as EF does. A write that gets the caller's or the linked token instead of
+  `CancellationToken.None` then fails the tests here and in T03b.
 - The fake recorder and the fake suppliers append to one call log. When a test reads a `QuoteReceived` or `SupplierFailed`, the log
   already has that supplier's `RecordAsync` (persist, then yield). When it reads `Ended`, the `FinishAsync` calls are exactly
   `[that status]` (written before `ended`, and only once).
@@ -91,5 +99,9 @@ A test that checks `ResponseTimeMs` advances exactly to that supplier's completi
   `SearchStarted.Suppliers` get the same distinct list.
 - `started` is yielded only after every supplier's call has been started (needed so integration tests can advance time safely),
   and the call log has `StartAsync` before the first supplier call.
+- SS3: the start write counts toward the 6 s. The fake recorder advances 5 s inside `StartAsync`. After `started` the test
+  advances 1 s, then completes A's TCS with `TrySetResult` (the timeout already cancelled it) → `Ended(TimedOut)` with `responded: 0` and no `RecordAsync`. If the CTS were created
+  after `StartAsync`, A would be yielded and the search would end `Completed`.
+- P2: the fake recorder advances 2 s inside `StartAsync`, A answers 1 s after `started` → `ResponseTimeMs = 1000`.
 - `StartAsync` throws (e.g. a duplicate `searchId`) → the exception reaches the caller, no supplier was called, and there are no
   `FinishAsync` calls.

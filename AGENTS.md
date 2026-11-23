@@ -52,10 +52,10 @@ npx prettier --write .                            # formatting: double quotes, t
 ## Server rules (C#)
 - Minimal APIs, feature folders (`Suppliers/`, `Search/`, `History/`, `Data/`). `Program.cs` contains wiring only.
 - Inject `TimeProvider` for every delay or timeout, and `IRandomSource` for randomness. Tests use `FakeTimeProvider`, never real sleeps.
-- Every async method that can wait accepts a `CancellationToken` and passes it to everything below.
+- Every async method that can wait accepts a `CancellationToken` and passes it to everything below. The exception is the search's DB writes (next rules).
 - Forbidden: `async void`, `.Result`, `.Wait()`, `Thread.Sleep`, fire-and-forget `Task.Run`, swallowing `OperationCanceledException` that came from the caller's token.
 - `DbContext` is never used from more than one thread. Supplier calls run concurrently, one loop consumes their results (`Task.WhenEach`). Supplier tasks never touch the DB: a search's writes run one after another in the orchestrator's own flow.
-- The final status write after cancellation uses `CancellationToken.None`.
+- Every recorder write, `StartAsync` included, uses `CancellationToken.None` (plan.md, "Concurrency model").
 - SQLite/EF: store money as `long` minor units and time as UTC `DateTime` (SQLite can't ORDER BY `decimal` or `DateTimeOffset`). Never return entities from endpoints, return DTOs.
 - Schema changes go through EF migrations: `dotnet ef migrations add <Name> --project server/PriceHunt.Api`.
 - Nullable enabled, warnings are bugs. Records for DTOs and events.
@@ -78,6 +78,8 @@ Integration tests are the default. Isolated tests are used only where an integra
 | **Supplier** (component) | What can't be seen from above: the hanging supplier ends only through `ct`, the flaky threshold. A few tests. | `SimulatedSupplier` with `FakeTimeProvider` and fake random. |
 
 - No mocking libraries. Fakes are small hand-written classes. Never mock `DbContext` or EF: use real SQLite.
+- Pass `TestContext.Current.CancellationToken` to every call that takes a token, unless the test itself controls that token
+  (e.g. a CTS it cancels). The xUnit v3 analyzer (xUnit1051) fails the `-warnaserror` build otherwise.
 - Time moves only through `FakeTimeProvider.Advance`. No real sleeps, no `Task.Delay` in tests, no polling with timeouts as a sync mechanism.
   Integration tests advance time only after reading the `started` event (the server starts every supplier's delay before sending it).
   Never advance past a supplier delay and the 6 s deadline without reading the expected events in between: continuations run after
@@ -94,7 +96,9 @@ Integration tests are the default. Isolated tests are used only where an integra
 
 ## Dependencies
 Pre-approved, add them when a task needs them:
-- Server: `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.Design` (10.x), `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.AspNetCore.Mvc.Testing` (tests only).
+- Server: `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.Design`, `Microsoft.Extensions.TimeProvider.Testing`,
+  `Microsoft.AspNetCore.Mvc.Testing` (tests only). Both EF packages and the local `dotnet-ef` tool use one version, the latest
+  10.0.x patch: EF Sqlite 10.0.0 pulls a vulnerable `SQLitePCLRaw` (NU1903 fails the `-warnaserror` build), and 11.x needs net11.
 - Client: `@angular/material` and `@angular/cdk` (same major version as Angular), see ADR-0002. FLIP and skeleton rows are written by hand.
 
 Anything else needs the owner's approval.
