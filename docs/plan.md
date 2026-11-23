@@ -148,7 +148,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 
 | ID | Task | Reqs | Status |
 |----|------|------|--------|
-| [T01](tasks/T01-foundation.md) | Foundation: CORS, supplier catalog and endpoint, test factory | S1, D1, D3 | [ ] |
+| [T01](tasks/T01-foundation.md) | Foundation: CORS, supplier catalog and endpoint, test factory | S1, D1, D3 | [~] |
 | [T02](tasks/T02-suppliers.md) | Simulated suppliers | S1–S4 | [ ] |
 | [T03a](tasks/T03a-orchestrator-core.md) | Search orchestrator: stream, timeout, isolation | SS1–SS4, P2, I1–I3 | [ ] |
 | [T03b](tasks/T03b-orchestrator-cancellation.md) | Search orchestrator: cancellation, races at the deadline | SS3, SS5, P1, I1, I3, I7 | [ ] |
