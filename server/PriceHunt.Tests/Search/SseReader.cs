@@ -6,9 +6,9 @@ namespace PriceHunt.Tests.Search;
 public record SseEvent(string Type, JsonElement Data);
 
 /// <summary>Reads an SSE response one event at a time, so a test can advance time between events.</summary>
-public sealed class SseReader(Stream stream, CancellationToken ct) : IAsyncDisposable
+public sealed class SseReader(HttpResponseMessage response, Stream stream, CancellationToken ct) : IAsyncDisposable
 {
-    private readonly IAsyncEnumerator<SseItem<string>> _items = SseParser.Create(stream).EnumerateAsync(ct).GetAsyncEnumerator(ct);
+    private readonly IAsyncEnumerator<SseItem<string>> _items = SseParser.Create(stream).EnumerateAsync(ct).GetAsyncEnumerator();
 
     public async Task<SseEvent> NextAsync()
     {
@@ -29,5 +29,6 @@ public sealed class SseReader(Stream stream, CancellationToken ct) : IAsyncDispo
     {
         await _items.DisposeAsync();
         await stream.DisposeAsync();
+        response.Dispose();
     }
 }

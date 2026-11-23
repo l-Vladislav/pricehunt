@@ -124,7 +124,7 @@ returns `{ items: [...], total, page, pageSize }`. `startDate` (inclusive) and `
 ## Checked by a spike
 Before T01 the risky parts of this plan were built once in a throwaway copy (not committed) with integration tests and a load test.
 Confirmed: the orchestrator design (manual enumeration, `[EnumeratorCancellation]`, the `finally`, late results dropped, `Cancelled`
-written once), `SseItem<object>` with derived fields and camelCase enums, abort through `TestServer`, built-in validation on records
+written once), SSE items with derived fields and camelCase enums, abort through `TestServer`, built-in validation on records
 and on `[AsParameters]` with `IValidatableObject`, the in-memory SQLite factory, the UTC converter, `HasData`, and null-last price sorting in SQL.
 The first spike's loop checked the token after each `MoveNextAsync`. The current loop has no such check and relies on how `Task.WhenEach`
 handles cancellation. That was checked later on .NET 10 with a console app: `MoveNextAsync` throws after the token fired while a

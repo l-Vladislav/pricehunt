@@ -10,15 +10,15 @@ namespace PriceHunt.Tests.Search;
 
 public class SearchEndpointTests
 {
-    // From the factory's default random values, in delay order. Lantern hangs.
-    private static readonly (string SupplierId, string Type, TimeSpan Delay)[] Answers =
+    // From the factory's default random values, in delay order. Granite fails, lantern hangs.
+    private static readonly (string SupplierId, string Type, TimeSpan Delay, decimal? Price)[] Answers =
     [
-        ("harbor", "quote", TimeSpan.FromSeconds(1.0625)),
-        ("comet", "quote", TimeSpan.FromSeconds(1.625)),
-        ("granite", "supplier-failed", TimeSpan.FromSeconds(2.1875)),
-        ("pelican", "quote", TimeSpan.FromSeconds(2.75)),
-        ("nimbus", "quote", TimeSpan.FromSeconds(3.3125)),
-        ("maple", "quote", TimeSpan.FromSeconds(3.875)),
+        ("harbor", "quote", TimeSpan.FromSeconds(1.0625), 443.75m),
+        ("comet", "quote", TimeSpan.FromSeconds(1.625), 162.50m),
+        ("granite", "supplier-failed", TimeSpan.FromSeconds(2.1875), null),
+        ("pelican", "quote", TimeSpan.FromSeconds(2.75), 275.00m),
+        ("nimbus", "quote", TimeSpan.FromSeconds(3.3125), 106.25m),
+        ("maple", "quote", TimeSpan.FromSeconds(3.875), 387.50m),
     ];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -38,7 +38,7 @@ public class SearchEndpointTests
                 .Select(s => new SupplierInfo(s.GetProperty("id").GetString()!, s.GetProperty("name").GetString()!)));
 
         var elapsed = TimeSpan.Zero;
-        foreach (var (supplierId, type, delay) in Answers)
+        foreach (var (supplierId, type, delay, _) in Answers)
         {
             // Exactly to this supplier's delay: the later ones are still pending when its event is read.
             factory.Time.Advance(delay - elapsed);
@@ -80,7 +80,7 @@ public class SearchEndpointTests
         await using var events = await StartSearchAsync(client, Body(Guid.NewGuid(), allButLantern), Ct);
         await events.NextAsync("started");
 
-        // Lantern is last in the catalog, so the others draw the same values as in a default search.
+        // Lantern draws no random values, so the others get the same values as in a default search.
         await ReadAllAnswersAsync(factory, events);
 
         var ended = await events.NextAsync("ended");
@@ -107,7 +107,10 @@ public class SearchEndpointTests
         Assert.Equal(
             ["comet", "harbor", "maple", "nimbus", "pelican"],
             quotes.Select(q => q.Data.GetProperty("supplierId").GetString()).Order());
-        Assert.All(quotes, q => Assert.True(q.Data.GetProperty("price").GetDecimal() > 0));
+        // Prices are USD, as the factory's random values give them.
+        Assert.All(quotes, q => Assert.Equal(
+            Answers.Single(a => a.SupplierId == q.Data.GetProperty("supplierId").GetString()).Price,
+            q.Data.GetProperty("price").GetDecimal()));
 
         factory.Time.Advance(TimeSpan.FromSeconds(1));
         await events.NextAsync("ended");
@@ -143,8 +146,8 @@ public class SearchEndpointTests
         List<SseEvent> all = [await events.NextAsync("started"), .. await ReadAllAnswersAsync(factory, events)];
         factory.Time.Advance(TimeSpan.FromSeconds(1));
         all.Add(await events.NextAsync("ended"));
+        await events.AssertClosedAsync();
 
-        Assert.Equal(8, all.Count);
         Assert.All(all, e => Assert.Equal(searchId, e.Data.GetProperty("searchId").GetGuid()));
     }
 
@@ -164,7 +167,7 @@ public class SearchEndpointTests
         var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
-        return new SseReader(await response.Content.ReadAsStreamAsync(ct), ct);
+        return new SseReader(response, await response.Content.ReadAsStreamAsync(ct), ct);
     }
 
     // Advances to 5 s, past every answering supplier's delay but not the 6 s deadline, and reads their six events.

@@ -6,14 +6,15 @@ public static class SearchEndpoints
 {
     public static IEndpointRouteBuilder MapSearchEndpoints(this IEndpointRouteBuilder app)
     {
-        // The token is the request's RequestAborted: a client that disconnects cancels the search (SS5).
+        // ct is RequestAborted, so a client that disconnects cancels the search (SS5). The SSE result also passes
+        // RequestAborted to the enumerator; passing it here doesn't depend on that.
         app.MapPost("/api/search", (SearchRequest request, SearchOrchestrator orchestrator, CancellationToken ct) =>
             TypedResults.ServerSentEvents(orchestrator.RunAsync(request, ct).Select(ToSseItem)));
         return app;
     }
 
-    // SseItem<object>, not SseItem<SearchEvent>: the serializer then writes the runtime type with its own fields.
-    private static SseItem<object> ToSseItem(SearchEvent e) => new(e, e switch
+    // ASP.NET Core serializes each item by its runtime type, so the derived events' fields are written.
+    private static SseItem<SearchEvent> ToSseItem(SearchEvent e) => new(e, e switch
     {
         SearchStarted => "started",
         QuoteReceived => "quote",

@@ -5,9 +5,9 @@
 `POST /api/search` streams the orchestrator's events as SSE. Validation comes in T05b.
 
 ## Design
-- Use `TypedResults.ServerSentEvents(...)` (.NET 10) with `SseItem<object>` and `eventType` set per event
-  (`started`, `quote`, `supplier-failed`, `ended`, see plan.md). `object` makes the serializer write the runtime type,
-  so the derived fields are included (checked in the spike).
+- Use `TypedResults.ServerSentEvents(...)` (.NET 10) with `SseItem<SearchEvent>` and `eventType` set per event
+  (`started`, `quote`, `supplier-failed`, `ended`, see plan.md). ASP.NET Core serializes each item by its runtime type,
+  so the derived fields are included.
 - JSON is camelCase, enums included (`JsonStringEnumConverter` with camelCase), so `ended.status` is `"completed"` or `"timedOut"`.
 - The orchestrator gets `HttpContext.RequestAborted`. No response buffering or compression on this endpoint.
 
