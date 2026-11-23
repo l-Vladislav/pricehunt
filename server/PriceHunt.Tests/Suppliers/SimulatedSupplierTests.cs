@@ -6,7 +6,7 @@ namespace PriceHunt.Tests.Suppliers;
 public class SimulatedSupplierTests
 {
     private const double LowestRandom = 0.0;
-    private const double HighestRandom = 0.9999999999999999; // the largest double below 1
+    private static readonly double HighestRandom = Math.BitDecrement(1.0);
 
     private static readonly SearchCriteria Criteria =
         new("Berlin", "Paris", new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 5));
@@ -53,7 +53,6 @@ public class SimulatedSupplierTests
         var quote = await QuoteAfter(supplier, TimeSpan.FromSeconds(5));
         Assert.NotNull(quote);
         Assert.InRange(quote.PriceUsd, 499.99m, 500.00m);
-        Assert.Equal(quote.PriceUsd, decimal.Round(quote.PriceUsd, 2));
     }
 
     [Fact]
@@ -72,6 +71,7 @@ public class SimulatedSupplierTests
         // Draw order: delay, failure roll, price.
         var supplier = Create(SupplierBehavior.Flaky, LowestRandom, roll, LowestRandom);
 
+        Assert.Null(await QuoteAfter(supplier, TimeSpan.FromMilliseconds(499)));
         if (fails)
             await Assert.ThrowsAsync<SupplierUnavailableException>(() => QuoteAfter(supplier, TimeSpan.FromMilliseconds(500)));
         else

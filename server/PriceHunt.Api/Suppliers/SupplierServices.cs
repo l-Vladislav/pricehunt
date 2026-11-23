@@ -4,7 +4,6 @@ public static class SupplierServices
 {
     public static IServiceCollection AddSuppliers(this IServiceCollection services)
     {
-        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IRandomSource, SharedRandomSource>();
 
         foreach (var (supplier, behavior) in SupplierCatalog.Entries)
