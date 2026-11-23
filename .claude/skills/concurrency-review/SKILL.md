@@ -9,21 +9,30 @@ paths: server/PriceHunt.Api/Search/**, server/PriceHunt.Api/Suppliers/**, client
 Read the changed files, then answer **every** item with ✅, ❌ + file:line, or N/A. Fix the ❌ items or report them.
 
 ## Server
-- [ ] Linked CTS combines `RequestAborted` + 6 s timeout via `TimeProvider`. The code can tell which one fired.
+- [ ] The 6 s timeout is its own CTS created with `TimeProvider` (`new CancellationTokenSource(timeout, timeProvider)`), linked with
+      `RequestAborted`. No `CancelAfter` on the linked CTS. The code can tell which one fired.
 - [ ] Every supplier call receives the linked token. The hanging supplier ends only through that token.
 - [ ] Each supplier task isolates its own exceptions. One failure can't fault the whole search (SS4).
-- [ ] Cancellation of the linked token is not reported as a supplier failure.
-- [ ] Results arriving after the deadline are not yielded or streamed.
-- [ ] All supplier tasks are awaited/observed before the method returns. No unobserved task exceptions.
-- [ ] `DbContext` is touched by one consumer only. The final status write uses `CancellationToken.None`.
-- [ ] Terminal status is exactly one of Completed / TimedOut / Cancelled, and it is persisted in every path (including exceptions).
+- [ ] Code rule, no test: a supplier task doesn't catch cancellation of the linked token as a failure. Such an event could
+      never be taken by the loop, so no test can see it; check the code.
+- [ ] The loop enumerates `Task.WhenEach(...)` with the linked token and takes no task after the token fired (`docs/plan.md`,
+      "Concurrency model", step 3).
+- [ ] Every DB write goes through the recorder's `SemaphoreSlim(1, 1)` (SQLite has one writer).
+- [ ] Only `MoveNextAsync` sits in the `try/catch` that turns a timeout into `TimedOut`. A late result is neither stored nor
+      streamed. Each result is persisted (with `CancellationToken.None`), then yielded; a stored one is always yielded.
+- [ ] Each outcome in `docs/plan.md`, "Concurrency model", step 4 is implemented as written: `Completed`, `TimedOut`, and
+      `Cancelled` (written in the `finally`) with its `OperationCanceledException` propagating uncaught, also during the last write.
+- [ ] A `finally` block cancels the linked CTS with `Cancel()` (T03a) and awaits all supplier tasks (`SuppressThrowing`) before the method returns,
+      also when the consumer stops enumerating early. No unobserved task exceptions.
+- [ ] `DbContext` is touched by one consumer only. Every recorder write, `StartAsync` included, uses `CancellationToken.None`.
+- [ ] Terminal status is exactly one of Completed / TimedOut / Cancelled, written exactly once, in every path (including exceptions).
 - [ ] `CancellationTokenSource` instances are disposed.
 - [ ] No `async void`, `.Result`, `.Wait()`, `Thread.Sleep`, fire-and-forget.
 - [ ] The SSE response isn't buffered or compressed.
 
 ## Client
 - [ ] A new search aborts the previous `fetch` (switchMap + AbortController).
-- [ ] Every event is checked against the current `searchId` before it changes state (SC6).
+- [ ] The client creates `searchId` before the request. Every event, `started` included, is checked against it before it changes state (SC6).
 - [ ] Stream errors and completion leave the UI in a final state, never stuck on "running".
 - [ ] No subscription leaks on component destroy.
 - [ ] Progress counts quotes + failures (I1).
