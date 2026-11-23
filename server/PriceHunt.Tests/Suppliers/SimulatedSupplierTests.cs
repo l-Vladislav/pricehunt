@@ -3,8 +3,6 @@ using PriceHunt.Api.Suppliers;
 
 namespace PriceHunt.Tests.Suppliers;
 
-// Task.Delay with a TimeProvider completes inside FakeTimeProvider.Advance, and these tests run without a
-// SynchronizationContext, so the supplier's continuation has run by the time Advance returns.
 public class SimulatedSupplierTests
 {
     private const double LowestRandom = 0.0;
@@ -18,34 +16,52 @@ public class SimulatedSupplierTests
     private SimulatedSupplier Create(SupplierBehavior behavior, params double[] randomValues) =>
         new("test", "Test", behavior, _time, new SequenceRandomSource(randomValues));
 
+    // Starts a call, advances the clock, then cancels the call. Returns the quote if the call's delay was over by then,
+    // or null if it was still waiting. Advance completes the delay synchronously, but the supplier's continuation
+    // may run later, so a check of IsCompleted right after Advance would race.
+    private async Task<SupplierQuote?> QuoteAfter(SimulatedSupplier supplier, TimeSpan elapsed)
+    {
+        using var cts = new CancellationTokenSource();
+        var quote = supplier.GetQuoteAsync(Criteria, cts.Token);
+        _time.Advance(elapsed);
+        cts.Cancel();
+        try
+        {
+            return await quote;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
     [Fact]
     public async Task S2_NormalSupplier_WithLowestRandom_AnswersAfterHalfASecondWithMinimumPrice()
     {
-        var quote = Create(SupplierBehavior.Normal, LowestRandom)
-            .GetQuoteAsync(Criteria, TestContext.Current.CancellationToken);
+        var supplier = Create(SupplierBehavior.Normal, LowestRandom);
 
-        _time.Advance(TimeSpan.FromMilliseconds(499));
-        Assert.False(quote.IsCompleted);
-
-        _time.Advance(TimeSpan.FromMilliseconds(1));
-        Assert.True(quote.IsCompleted);
-        Assert.Equal(50.00m, (await quote).PriceUsd);
+        Assert.Null(await QuoteAfter(supplier, TimeSpan.FromMilliseconds(499)));
+        Assert.Equal(50.00m, (await QuoteAfter(supplier, TimeSpan.FromMilliseconds(500)))?.PriceUsd);
     }
 
     [Fact]
     public async Task S2_NormalSupplier_WithHighestRandom_AnswersWithinFiveSecondsWithPriceAtMostMaximum()
     {
-        var quote = Create(SupplierBehavior.Normal, HighestRandom)
-            .GetQuoteAsync(Criteria, TestContext.Current.CancellationToken);
+        var supplier = Create(SupplierBehavior.Normal, HighestRandom);
 
-        _time.Advance(TimeSpan.FromMilliseconds(4990));
-        Assert.False(quote.IsCompleted);
+        Assert.Null(await QuoteAfter(supplier, TimeSpan.FromMilliseconds(4990)));
+        var quote = await QuoteAfter(supplier, TimeSpan.FromSeconds(5));
+        Assert.NotNull(quote);
+        Assert.InRange(quote.PriceUsd, 499.99m, 500.00m);
+        Assert.Equal(quote.PriceUsd, decimal.Round(quote.PriceUsd, 2));
+    }
 
-        _time.Advance(TimeSpan.FromMilliseconds(10));
-        Assert.True(quote.IsCompleted);
-        var price = (await quote).PriceUsd;
-        Assert.InRange(price, 499.99m, 500.00m);
-        Assert.Equal(price, decimal.Round(price, 2));
+    [Fact]
+    public async Task S2_NormalSupplier_RoundsPriceToCents()
+    {
+        var supplier = Create(SupplierBehavior.Normal, 0.123456789); // price 105.555555...
+
+        Assert.Equal(105.56m, (await QuoteAfter(supplier, TimeSpan.FromSeconds(5)))?.PriceUsd);
     }
 
     [Theory]
@@ -54,28 +70,30 @@ public class SimulatedSupplierTests
     public async Task S3_FlakySupplier_FailsOnlyWhenRollIsBelowThreshold(double roll, bool fails)
     {
         // Draw order: delay, failure roll, price.
-        var quote = Create(SupplierBehavior.Flaky, LowestRandom, roll, LowestRandom)
-            .GetQuoteAsync(Criteria, TestContext.Current.CancellationToken);
-
-        _time.Advance(TimeSpan.FromMilliseconds(500));
+        var supplier = Create(SupplierBehavior.Flaky, LowestRandom, roll, LowestRandom);
 
         if (fails)
-            await Assert.ThrowsAsync<SupplierUnavailableException>(() => quote);
+            await Assert.ThrowsAsync<SupplierUnavailableException>(() => QuoteAfter(supplier, TimeSpan.FromMilliseconds(500)));
         else
-            Assert.Equal(50.00m, (await quote).PriceUsd);
+            Assert.Equal(50.00m, (await QuoteAfter(supplier, TimeSpan.FromMilliseconds(500)))?.PriceUsd);
+    }
+
+    [Fact]
+    public async Task S3_FlakySupplier_DrawsThePriceAlsoWhenItFails()
+    {
+        // First call: delay, roll (fails), price. Second call: delay, roll (passes), price.
+        var supplier = Create(SupplierBehavior.Flaky, LowestRandom, 0.1, 0.9, LowestRandom, 0.5, LowestRandom);
+
+        await Assert.ThrowsAsync<SupplierUnavailableException>(() => QuoteAfter(supplier, TimeSpan.FromMilliseconds(500)));
+        Assert.Equal(50.00m, (await QuoteAfter(supplier, TimeSpan.FromMilliseconds(500)))?.PriceUsd);
     }
 
     [Fact]
     public async Task S4_HangingSupplier_EndsOnlyThroughCancellation()
     {
-        using var cts = new CancellationTokenSource();
-        var quote = Create(SupplierBehavior.Hanging).GetQuoteAsync(Criteria, cts.Token);
+        // No random values: a draw would throw, so this also checks that the hanging supplier draws nothing.
+        var supplier = Create(SupplierBehavior.Hanging);
 
-        _time.Advance(TimeSpan.FromHours(1));
-        Assert.False(quote.IsCompleted);
-
-        cts.Cancel();
-        Assert.True(quote.IsCanceled);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => quote);
+        Assert.Null(await QuoteAfter(supplier, TimeSpan.FromHours(1)));
     }
 }
