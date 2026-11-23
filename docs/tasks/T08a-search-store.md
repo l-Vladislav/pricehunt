@@ -15,6 +15,7 @@ A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T0
 - A stream error is caught inside the `switchMap` projection (`catchError` on the inner Observable) and turned into the
   `error` state. Otherwise the error ends the outer subscription and every later `search()` does nothing.
   A stream that completes without `ended` also ends in `error` with the message "Search ended unexpectedly", so the page never stays `running`.
+  The status from `ended` is final: a stream error after it changes nothing.
 - **Stale guard:** each search gets a new `searchId` from `crypto.randomUUID()`, sent with the request.
   Every event, `started` included, is ignored unless its `searchId` matches. This is a second line of defence on top of `switchMap`.
 - Add each result with `[...results, r].sort(byPrice)`. `Array.prototype.sort` is stable, so ties keep their arrival order.
@@ -22,7 +23,8 @@ A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T0
   Put this reason in a one-line code comment next to the sort, so a reader doesn't "optimise" it later.
 - Failed suppliers count toward progress but are not added to `results`: the list shows prices, and a failure has none.
 - A small `SuppliersApi` in `core/` loads `/api/suppliers` with `HttpClient`. T08b and T10a use it.
-  Add `provideHttpClient(withFetch())` to `app.config.ts`.
+  Nothing to add to `app.config.ts`:
+  Angular 22 provides `HttpClient` in root, on `fetch` by default.
 
 ## Tests (Vitest, TestBed, fake stream client driven by a Subject)
 The fake stream client creates one Subject per call and keeps them all, so a test can check that A's was unsubscribed and can
@@ -36,7 +38,10 @@ push events tagged with an old `searchId` into B's Subject.
   without `switchMap`).
 - SC5, I1: `responded` counts both quotes and failures.
 - SC5: `ended` sets the final status, and it stays after the stream then completes (no `errorMessage`): T07's client always
-  completes after `ended`. A stream error sets `error` and `errorMessage`. A stream that completes without `ended` sets `error` and "Search ended unexpectedly".
+  completes after `ended`. It also stays when the stream errors after `ended`. A stream error before it sets `error` and
+  `errorMessage`. A stream that completes without `ended` sets `error` and "Search ended unexpectedly".
 - SC5: after a stream error, a new `search()` runs and its events update the state.
 - SS5: destroying the store (its injector) aborts the running stream.
+- SC5: the status is `idle` before the first search. SC2: the request carries the form values and the new `searchId`.
+- SC6: the state is reset before the request is sent.
 - `SuppliersApi` calls `/api/suppliers` under `API_BASE_URL` (`HttpTestingController`).
