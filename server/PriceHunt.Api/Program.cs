@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PriceHunt.Api.Data;
+using PriceHunt.Api.History;
 using PriceHunt.Api.Search;
 using PriceHunt.Api.Suppliers;
 
@@ -27,5 +28,6 @@ app.MigrateDatabase();
 app.UseCors();
 app.MapSupplierEndpoints();
 app.MapSearchEndpoints();
+app.MapHistoryEndpoints();
 
 app.Run();

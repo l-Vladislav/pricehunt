@@ -240,7 +240,7 @@ public class SearchEndpointTests
         Assert.Equal(("Berlin", "New York"), (search.FromLocation, search.ToLocation));
     }
 
-    private static Dictionary<string, object?> Body(Guid searchId, string[]? supplierIds = null) => new()
+    internal static Dictionary<string, object?> Body(Guid searchId, string[]? supplierIds = null) => new()
     {
         ["searchId"] = searchId,
         ["fromLocation"] = "Berlin",
@@ -257,7 +257,7 @@ public class SearchEndpointTests
         return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Ct);
     }
 
-    private static async Task<SseReader> StartSearchAsync(HttpClient client, object body, CancellationToken ct)
+    internal static async Task<SseReader> StartSearchAsync(HttpClient client, object body, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/search") { Content = JsonContent.Create(body) };
         var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -293,7 +293,7 @@ public class SearchEndpointTests
         factory.Services.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync(Ct);
 
     // 5 s: every answering supplier is done, the 6 s deadline hasn't passed.
-    private static async Task<List<SseEvent>> ReadAllAnswersAsync(PriceHuntApiFactory factory, SseReader events)
+    internal static async Task<List<SseEvent>> ReadAllAnswersAsync(PriceHuntApiFactory factory, SseReader events)
     {
         factory.Time.Advance(TimeSpan.FromSeconds(5));
         List<SseEvent> answers = [];
