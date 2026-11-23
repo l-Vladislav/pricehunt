@@ -12,8 +12,7 @@ Prerequisites: .NET 10 SDK, Node.js 22.22.3+ or 24.15+ (required by Angular 22).
 dotnet run --project server/PriceHunt.Api
 
 # terminal 2: UI on http://localhost:4142 (installs packages on first run)
-cd client
-npm start
+npm start --prefix client
 ```
 
 Tests: `dotnet test --solution server/PriceHunt.sln` in the repo root, `npm test -- --watch=false` in `client/`.
