@@ -70,6 +70,26 @@ public class PersistenceTests
     }
 
     [Fact]
+    public async Task P1_I2_SubsetWithoutTheHangingSupplier_StoresOnlyTheSelectedSuppliers_AndEndsCompleted()
+    {
+        await using var factory = new PriceHuntApiFactory();
+        // Values are drawn per selected supplier in catalog order: comet takes pelican's (2.75 s), harbor comet's (1.625 s).
+        var request = Request with { SupplierIds = ["harbor", "comet"] };
+        await using var events = Orchestrator(factory).RunAsync(request, Ct).GetAsyncEnumerator(Ct);
+        await NextAsync<SearchStarted>(events);
+        factory.Time.Advance(TimeSpan.FromSeconds(1.625));
+        Assert.Equal("harbor", (await NextAsync<QuoteReceived>(events)).SupplierId);
+        factory.Time.Advance(TimeSpan.FromSeconds(1.125));
+        Assert.Equal("comet", (await NextAsync<QuoteReceived>(events)).SupplierId);
+        Assert.Equal(SearchStatus.Completed, (await NextAsync<SearchEnded>(events)).Status);
+
+        await using var db = await CreateDbAsync(factory);
+        Assert.Equal(SearchStatus.Completed, (await db.Searches.SingleAsync(Ct)).Status);
+        var selected = await db.SearchSuppliers.Select(ss => ss.SupplierId).ToListAsync(Ct);
+        Assert.Equal(["comet", "harbor"], selected.Order());
+    }
+
+    [Fact]
     public async Task P2_I5_Failure_IsStoredWithNullPriceAndItsResponseTime()
     {
         await using var factory = new PriceHuntApiFactory();
@@ -80,6 +100,32 @@ public class PersistenceTests
         var failure = await db.SupplierResponses.SingleAsync(r => r.SupplierId == "granite", Ct);
         Assert.Null(failure.PriceMinor);
         Assert.Equal((long)GraniteDelay.TotalMilliseconds, failure.ResponseTimeMs);
+    }
+
+    [Fact]
+    public async Task P1_P2_DuringSearch_RowIsRunningAndAResponseIsStoredBeforeItIsStreamed()
+    {
+        await using var factory = new PriceHuntApiFactory();
+        await using var events = Orchestrator(factory).RunAsync(Request, Ct).GetAsyncEnumerator(Ct);
+        await NextAsync<SearchStarted>(events);
+
+        await using (var db = await CreateDbAsync(factory))
+            Assert.Equal(SearchStatus.Running, (await db.Searches.SingleAsync(Ct)).Status);
+
+        factory.Time.Advance(HarborDelay);
+        Assert.Equal("harbor", (await NextAsync<QuoteReceived>(events)).SupplierId);
+        await using (var db = await CreateDbAsync(factory))
+        {
+            Assert.Equal(SearchStatus.Running, (await db.Searches.SingleAsync(Ct)).Status);
+            Assert.Equal(["harbor"], await db.SupplierResponses.Select(r => r.SupplierId).ToListAsync(Ct));
+        }
+
+        // Run to the deadline, so the search ends before the factory is disposed.
+        factory.Time.Advance(TimeSpan.FromSeconds(5) - HarborDelay);
+        for (var i = 0; i < 5; i++)
+            Assert.True(await events.MoveNextAsync());
+        factory.Time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(SearchStatus.TimedOut, (await NextAsync<SearchEnded>(events)).Status);
     }
 
     [Fact]
