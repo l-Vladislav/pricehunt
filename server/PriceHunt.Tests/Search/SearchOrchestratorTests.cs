@@ -69,6 +69,7 @@ public class SearchOrchestratorTests
     {
         Assert.Equal(new SearchEnded(SearchId, status, responded, total), await Next<SearchEnded>(events));
         Assert.False(await events.MoveNextAsync());
+        Assert.Equal([status], _recorder.Statuses); // the finally ran and wrote nothing more
     }
 
     // Ends a search whose suppliers never answered, so no test leaves one running.
@@ -323,8 +324,9 @@ public class SearchOrchestratorTests
 
         caller.Cancel();
 
-        await AssertCallerCancellationPropagates(events);
+        // Checked before awaiting: if the cancellation didn't reach the suppliers, MoveNextAsync would never return.
         Assert.All(suppliers, s => Assert.True(s.WasCancelled));
+        await AssertCallerCancellationPropagates(events);
         Assert.Equal([SearchStatus.Cancelled], _recorder.Statuses);
     }
 
@@ -463,7 +465,9 @@ public class SearchOrchestratorTests
     {
         var a = new FakeSupplier("a", _log);
         var late = new FakeSupplier("late", _log, ignoresCancellation: true);
-        await using var events = Start([a, late]);
+        // No await using: if an assertion failed before `late` answers, disposal would wait for it forever.
+        // AssertEnded runs the enumerator to its end, finally included.
+        var events = Start([a, late]);
         await Next<SearchStarted>(events);
         a.Answer(10m);
         await Next<QuoteReceived>(events);
