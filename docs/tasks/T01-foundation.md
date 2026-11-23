@@ -24,3 +24,5 @@ Both projects start with one command each. The API serves the supplier list the 
 - CORS: `OPTIONS /api/search` with `Origin: http://localhost:4200`, `Access-Control-Request-Method: POST` and
   `Access-Control-Request-Headers: content-type` returns `Access-Control-Allow-Origin: http://localhost:4200` and allows `content-type`.
   All client tests use fakes, so without this test a broken preflight shows up only in a manual run.
+- D1, D3: not automated. Check by running both start commands on a fresh clone and reading the versions in `global.json`
+  and `client/package.json`. State the result in the PR.

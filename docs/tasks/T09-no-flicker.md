@@ -13,7 +13,7 @@ entering animation.
   returns zero-size rects, so the T08b component tests keep passing.
 
 ## Verification
-- Manual: run a search and watch it. State in the PR how it was checked.
-- Unit: stub `Element.prototype.animate`, and stub `getBoundingClientRect` to return `top = index among sibling rows × row height`.
+- SC4 (manual): run a search and watch it. State in the PR how it was checked.
+- SC4 (unit): stub `Element.prototype.animate`, and stub `getBoundingClientRect` to return `top = index among sibling rows × row height`.
   A re-order calls `animate` on each moved row with a `translateY` equal to its old top minus its new top; a row that didn't move
   gets no call.
