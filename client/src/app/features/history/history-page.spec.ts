@@ -40,7 +40,6 @@ const failures: [string, (request: TestRequest) => void][] = [
 	["a 500", (r) => r.flush(null, { status: 500, statusText: "Server Error" })],
 ];
 
-// Built from the local getters, so it is right in any time zone.
 function localTime(instant: string): string {
 	const d = new Date(instant);
 	const two = (value: number) => String(value).padStart(2, "0");
@@ -185,7 +184,6 @@ describe("HistoryPage", () => {
 
 	it("HC1, I4: days picked in the calendars are sent as local midnights, the end day included", async () => {
 		await openPage();
-		// Makes both calendars open on November 2026.
 		await typeDate("Start date", "11/1/2026");
 		await respond(historyRequest());
 		await typeDate("End date", "11/30/2026");

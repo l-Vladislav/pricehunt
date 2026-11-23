@@ -4,7 +4,6 @@ import { Observable } from "rxjs";
 import { API_BASE_URL } from "./api-base-url";
 
 export interface HistoryQuery {
-	// UTC instants: startDate is inclusive, endDate is exclusive.
 	startDate?: string;
 	endDate?: string;
 	supplierIds: string[];

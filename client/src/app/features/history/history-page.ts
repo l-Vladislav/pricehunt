@@ -69,7 +69,6 @@ export class HistoryPage {
 				startWith(undefined),
 				switchMap(() =>
 					// Caught here, not on the outer stream: that would end it and later filters would do nothing.
-					// defer, so an error thrown by query() is caught too.
 					defer(() => this.historyApi.getHistory(this.query())).pipe(catchError(() => of(null))),
 				),
 				takeUntilDestroyed(),
