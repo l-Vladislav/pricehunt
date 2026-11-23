@@ -14,7 +14,11 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
   local time with `DatePipe` (`yyyy-MM-dd HH:mm`). A failed row shows "Failed" in the Price cell (I5).
 - On open the page loads page 1 with no filters: `page=1&pageSize=20&sortBy=date&sortDir=desc`. T10b keeps this request unchanged.
 - Filters apply on change, only when the filter form is valid. No Apply button. A start date after the end date (form validator,
-  mirrors the server's 400) sends nothing.
+  mirrors the server's 400) sends nothing and shows "Start date is after end date". The message, like the request, waits for
+  `dateChange`. Days are compared, so a typed time doesn't matter.
+- If the supplier list fails to load, the page shows "Suppliers not found". The table still works.
+- A failed history request shows "History is unavailable, please try again later" in place of the rows. The next filter change
+  sends a new request and cancels one still running.
 - Dates apply on the datepicker's `dateChange` (picker selection or leaving the field), not per keystroke: `NativeDateAdapter`
   parses partial text such as `"11/2"` as a real date. Text left in the field is applied as whatever the adapter parses.
 - A link between the search and history pages.
@@ -29,7 +33,15 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
   exactly one, with `startDate` = `new Date(2026, 10, 23).toISOString()`.
 - HC1: typing `abc` into the start date and dispatching `change` sends no request (the `matDatepickerParse` error makes the
   form invalid); a start date after the end date sends none either.
-- HC2: the table shows the five columns.
+- HC1: a start date after the end date shows its message when the field is left, until it is fixed. A filter change sends
+  nothing meanwhile.
+- HC1: a failed supplier or history request (500, network error) shows its message. Filters work after a failed history request
+  and after an end date with no next day (`9/13/275760`, the last date JavaScript has), which shows the same message.
+- HC1: the page is at `/history`, and it and the search page link to each other.
+- HC1: one date works alone and can be cleared. Filters are combined.
+- I4: the bounds are local midnights at a month end, on a clock change day and for a typed time.
+- HC1: a filter change cancels the request before it. Leaving the page cancels its requests.
+- HC2: the table shows the five columns. A filter change replaces the rows.
 - I5: a failed row shows "Failed" in the Price cell.
 - I4: a row with `date: "2026-11-23T22:30:00Z"` shows the local time of that instant (built from `new Date(...)` getters in the
   test). In CI's `Asia/Jerusalem` that is `2026-11-24 00:30`, so showing UTC fails the test.
