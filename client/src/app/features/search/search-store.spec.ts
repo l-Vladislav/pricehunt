@@ -212,6 +212,20 @@ describe("SearchStore", () => {
 		},
 	);
 
+	it.each(["completed", "timedOut"] as const)(
+		"SC5: the status %s stays when the stream errors after ended",
+		(status) => {
+			const { id, events } = startSearch();
+			events.next(started(id));
+			events.next(ended(id, status));
+
+			events.error(new Error("Connection lost"));
+
+			expect(store.status()).toBe(status);
+			expect(store.errorMessage()).toBeNull();
+		},
+	);
+
 	it("SC5: a stream error sets the error state and keeps the results", () => {
 		const { id, events } = startSearch();
 		events.next(started(id));

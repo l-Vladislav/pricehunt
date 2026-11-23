@@ -1,3 +1,5 @@
+import { Supplier } from "../../core/suppliers-api";
+
 export interface SearchRequest {
 	searchId: string;
 	fromLocation: string;
@@ -8,7 +10,7 @@ export interface SearchRequest {
 }
 
 export type SearchEvent =
-	| { type: "started"; data: { searchId: string; suppliers: { id: string; name: string }[] } }
+	| { type: "started"; data: { searchId: string; suppliers: Supplier[] } }
 	| {
 			type: "quote";
 			data: { searchId: string; supplierId: string; price: number; responseTimeMs: number };
