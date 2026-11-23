@@ -15,7 +15,7 @@ public sealed class EfSearchRecorder(IDbContextFactory<AppDbContext> dbFactory) 
     public Task StartAsync(SearchRequest request, IReadOnlyList<string> supplierIds, DateTime createdAtUtc, CancellationToken ct) =>
         WriteAsync(async (db, ct) =>
         {
-            db.Searches.Add(new Search
+            db.Searches.Add(new SearchRecord
             {
                 Id = request.SearchId,
                 FromLocation = request.FromLocation,

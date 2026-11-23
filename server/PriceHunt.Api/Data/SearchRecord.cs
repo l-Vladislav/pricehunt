@@ -2,7 +2,7 @@ using PriceHunt.Api.Search;
 
 namespace PriceHunt.Api.Data;
 
-public class Search
+public class SearchRecord
 {
     public Guid Id { get; set; }
     public required string FromLocation { get; set; }

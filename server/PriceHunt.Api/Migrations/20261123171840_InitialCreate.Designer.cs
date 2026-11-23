@@ -11,7 +11,7 @@ using PriceHunt.Api.Data;
 namespace PriceHunt.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261123170311_InitialCreate")]
+    [Migration("20261123171840_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace PriceHunt.Api.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
-            modelBuilder.Entity("PriceHunt.Api.Data.Search", b =>
+            modelBuilder.Entity("PriceHunt.Api.Data.SearchRecord", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -153,7 +153,7 @@ namespace PriceHunt.Api.Migrations
 
             modelBuilder.Entity("PriceHunt.Api.Data.SearchSupplier", b =>
                 {
-                    b.HasOne("PriceHunt.Api.Data.Search", null)
+                    b.HasOne("PriceHunt.Api.Data.SearchRecord", null)
                         .WithMany()
                         .HasForeignKey("SearchId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -168,7 +168,7 @@ namespace PriceHunt.Api.Migrations
 
             modelBuilder.Entity("PriceHunt.Api.Data.SupplierResponse", b =>
                 {
-                    b.HasOne("PriceHunt.Api.Data.Search", null)
+                    b.HasOne("PriceHunt.Api.Data.SearchRecord", null)
                         .WithMany()
                         .HasForeignKey("SearchId")
                         .OnDelete(DeleteBehavior.Cascade)
