@@ -9,7 +9,7 @@ Persistence plugs in through `ISearchRecorder` (fake here, real in T04).
 ## Types (defined here, used unchanged by T04 and T05a)
 ```csharp
 public record SearchRequest(Guid SearchId, string FromLocation, string ToLocation,
-    DateOnly FromDate, DateOnly ToDate, IReadOnlyList<string>? SupplierIds);   // T05b adds validation attributes
+    DateOnly? FromDate, DateOnly? ToDate, IReadOnlyList<string>? SupplierIds);   // nullable so T05b can require them
 
 public enum SearchStatus { Running, Completed, TimedOut, Cancelled }
 
@@ -28,6 +28,7 @@ public interface ISearchRecorder {
 }
 ```
 - `SupplierInfo(string Id, string Name)` comes from the catalog (T01).
+- The dates are nullable only for validation (T05b). Past the endpoint they are always set, and the orchestrator builds `SearchCriteria` from them.
 - Empty or null `SupplierIds` means all suppliers. The orchestrator resolves the list, so T05a passes the request through as is.
 - The orchestrator measures `ResponseTimeMs` with `TimeProvider.GetElapsedTime` and sets `ReceivedAtUtc` and `createdAtUtc` from `TimeProvider.GetUtcNow()`.
 - `StartAsync` runs before any supplier starts, so response rows always have their search row.
@@ -36,12 +37,14 @@ public interface ISearchRecorder {
 - Timeout CTS = `new CancellationTokenSource(TimeSpan.FromSeconds(6), timeProvider)`, linked with the caller `ct`. Keep track of **which** one fired.
   Don't call `CancelAfter` on the linked CTS: it uses the system clock, so `FakeTimeProvider` can't trigger it.
 - One task per supplier. Each task catches **all** exceptions except cancellation of the linked token, and returns one event.
-- One loop: `await foreach (var task in Task.WhenEach(tasks).WithCancellation(linkedToken))` yields events in completion order.
-  When the token fires, the loop exits at once (it doesn't wait for pending suppliers). It also checks the token before yielding,
-  so a result that completes after the deadline is dropped.
+- `RunAsync` marks `ct` with `[EnumeratorCancellation]`, so a token passed through `WithCancellation` by the SSE writer arrives
+  (without it, CS8425 fails the `-warnaserror` build).
+- One loop over `Task.WhenEach(tasks)` with the linked token yields events in completion order. When the token fires, the loop
+  exits at once (it doesn't wait for pending suppliers). It also checks the token before yielding, so a late result is dropped.
+- C# doesn't allow `yield return` inside a `try` that has a `catch` (CS1626). So enumerate by hand: `GetAsyncEnumerator(linkedToken)`,
+  wrap only `MoveNextAsync()` in `try/catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)`
+  to end with `TimedOut`, and `yield` outside that `try`. A caller cancellation is not caught: it propagates after the final write.
 - Each event is persisted first (`CancellationToken.None`), then yielded.
-- `WithCancellation` makes the loop throw `OperationCanceledException`. If the timeout fired, catch it and end with `TimedOut`;
-  if the caller's token fired, let it propagate after the final write.
 - Outcome:
   - all done → `Completed`;
   - timeout → `TimedOut`;
@@ -49,15 +52,20 @@ public interface ISearchRecorder {
   Pending suppliers are cancelled and produce no event and no record (I3).
 - The final status is written once, with `CancellationToken.None`. On normal completion: write it, then yield `ended`.
 - A `finally` block covers a consumer that stops enumerating early. It cancels the linked CTS (otherwise awaiting the hanging supplier
-  never ends), awaits all supplier tasks with `Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing)`
-  (no fire-and-forget, and their cancellations don't hide the original exception), and writes `Cancelled` if no status was written yet.
+  never ends), awaits all supplier tasks, and writes `Cancelled` if no status was written yet.
+  Await them with `((Task)Task.WhenAll(tasks)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing)`: no fire-and-forget, and their
+  cancellations don't hide the original exception. The cast matters: on `Task<T>`, `SuppressThrowing` throws
+  `ArgumentOutOfRangeException` (CA2261).
 
 ## Acceptance criteria
 - No `async void`, `.Result`, `.Wait()`, or fire-and-forget `Task.Run`.
 - The final recorder call uses `CancellationToken.None`.
 
 ## Tests (component: FakeTimeProvider, fake suppliers backed by controllable TaskCompletionSource)
+Fake suppliers cancel their TCS when `ct` fires (`ct.Register(() => tcs.TrySetCanceled(ct))`), otherwise the `finally` waits forever.
+The late-result test is the only exception: its fake ignores `ct`, and the test completes that TCS before the next `MoveNextAsync`.
 These tests pin exact timing. Behaviour visible over HTTP is tested again in T05a.
+A test that checks `ResponseTimeMs` advances exactly to that supplier's completion (see `AGENTS.md` on `Advance`).
 - SS2: events are yielded in completion order, before the remaining suppliers finish.
 - SS4: one supplier throws → the others still deliver, and a `SupplierFailed` event is emitted.
 - SS3, I1, I2: hanging supplier + 6 s elapsed → `Ended(TimedOut)` with the results collected so far, `responded` counts quotes and failures,

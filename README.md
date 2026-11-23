@@ -26,6 +26,12 @@ _TODO (T11): ER diagram and tables._
 ## Design decisions and trade-offs
 _TODO (T11): include the interpretations of ambiguous requirements from [spec.md](docs/spec.md#2-interpretations-of-ambiguous-points)._
 
+**SQLite has one writer.** Each response is saved before it is streamed, and several searches can run at once.
+SQLite lets only one connection write at a time, and the others retry with pauses. In a load test before implementation,
+10 parallel searches ended at 7.4 s instead of 6 s, and with 100 some responses that arrived in time were lost.
+So the recorder sends its writes through one `SemaphoreSlim` and they queue in memory instead. This is a SQLite workaround:
+with SQL Server or PostgreSQL concurrent writes just work and the gate would be removed. It also only works inside one process.
+
 ## What I would do differently
 _TODO (T11)._
 

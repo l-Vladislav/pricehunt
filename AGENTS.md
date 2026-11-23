@@ -80,7 +80,12 @@ Integration tests are the default. Isolated tests are used only where an integra
 - No mocking libraries. Fakes are small hand-written classes. Never mock `DbContext` or EF: use real SQLite.
 - Time moves only through `FakeTimeProvider.Advance`. No real sleeps, no `Task.Delay` in tests, no polling with timeouts as a sync mechanism.
   Integration tests advance time only after reading the `started` event (the server starts every supplier's delay before sending it).
-  Never advance past a supplier delay and the 6 s deadline in one `Advance` call: which one wins is then up to the scheduler.
+  Never advance past a supplier delay and the 6 s deadline without reading the expected events in between: continuations run after
+  `Advance` returns, so a second `Advance` right after the first races them just like one big step does.
+  `Advance` doesn't stop at each timer. Code that measures time sees the end of the step, so a test that checks an exact
+  `responseTimeMs` advances exactly to that supplier's delay.
+- A test that starts a search waits for it to end (`ended`, or the recorder decorator's TCS) before the factory is disposed.
+  Otherwise the orchestrator's `finally` writes to a disposed container.
 - A flaky concurrency test is a bug. Fix the synchronisation, don't add retries or longer timeouts.
 - Every testable requirement ID in a task maps to at least one test that names it, e.g. `// SS3` or `it('SS3: ...')`.
   For ones that can't be automated (e.g. SC4 visual smoothness, D2 README), state in the PR how they were verified.
@@ -90,7 +95,7 @@ Integration tests are the default. Isolated tests are used only where an integra
 ## Dependencies
 Pre-approved, add them when a task needs them:
 - Server: `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.Design` (10.x), `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.AspNetCore.Mvc.Testing` (tests only).
-- Client: none beyond what is installed (angular-eslint, Prettier). Build UI pieces (table, sort, pager, FLIP) by hand.
+- Client: `@angular/material` and `@angular/cdk` (same major version as Angular), see ADR-0002. FLIP and skeleton rows are written by hand.
 
 Anything else needs the owner's approval.
 

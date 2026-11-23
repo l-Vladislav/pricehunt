@@ -8,10 +8,11 @@
 Use the built-in Minimal API validation (`builder.Services.AddValidation()`), not hand-written checks.
 - `searchId`: `Guid.Empty` is rejected in `IValidatableObject`. An id that already exists → 400, checked in the handler with the DB.
 - Locations: `[Required]` (rejects empty and whitespace-only strings). Trimmed before the search is recorded, so the history filter (I6) matches.
-- `fromDate <= toDate` in `IValidatableObject`. Dates are `DateOnly`.
+- Dates are `[Required] DateOnly?`. A plain `DateOnly` would bind a missing date as `0001-01-01` and pass validation.
+  `fromDate <= toDate` in `IValidatableObject`.
 - `supplierIds` empty/null → all suppliers. An unknown id → 400, checked in the handler because it needs the supplier catalog.
 
 ## Tests (integration: `PriceHuntApiFactory`)
-- SS1: each invalid request → 400 ProblemDetails: missing location, `fromDate > toDate`, unknown supplier id, empty `searchId`, reused `searchId`.
+- SS1: each invalid request → 400 ProblemDetails: missing location, missing date, `fromDate > toDate`, unknown supplier id, empty `searchId`, reused `searchId`.
 - SS1: empty `supplierIds` → `started` lists all 7 suppliers. Two ids → only those two.
 - I6: locations with surrounding spaces are stored trimmed.

@@ -17,7 +17,7 @@ public interface ISupplier {
 ```
 - The simulated suppliers ignore `criteria`. It is there because a real supplier interface would need it (S1: "common interface").
 - The supplier only returns a price. The orchestrator (T03) measures the response time and the timestamp with `TimeProvider`.
-- `IRandomSource` has one method, `double NextDouble()`. Production wraps `Random.Shared`. Tests use a fake that returns a fixed sequence.
+- `IRandomSource` has one method, `double NextDouble()`. Production wraps `Random.Shared`. Tests use a fake that returns a fixed sequence and starts over when it runs out.
 - `SimulatedSupplier(id, name, SupplierBehavior, TimeProvider, IRandomSource)`.
   It draws everything before the first `await`, in this order: delay, failure roll (flaky only), price. The price is drawn even if the
   roll says fail, so every supplier uses a fixed number of values. The hanging supplier draws nothing.

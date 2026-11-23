@@ -11,3 +11,5 @@ The agent commits only after I approve. I review every PR, run the app, and merg
 | Task | What AI did | What I did / changed | Notes |
 |------|-------------|----------------------|-------|
 | Setup | Drafted spec, plan, task files and agent rules from my breakdown of the PDF. Wrote the CI workflow, PR template and `.gitignore`. Checked the spec against the PDF line by line. | Chose the architecture, the streaming transport, the answers to ambiguous points (I1–I8) and a mostly-integration test strategy. Had everything not in the PDF removed. Edited all docs. | |
+| Spike | Built the risky parts of the plan in a throwaway copy with integration tests and a load test, then fixed the plan. | Asked for the spike instead of more reading reviews. Chose to document the SQLite write gate as a trade-off. | Code not committed; findings in plan.md, "Checked by a spike". |
+| UI library | Compared Angular Material with hand-written UI and wrote ADR-0002 and T07b. | Chose Material, and skeleton rows as the form of the loading states. | |

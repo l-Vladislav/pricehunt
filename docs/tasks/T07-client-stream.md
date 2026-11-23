@@ -7,10 +7,13 @@ It uses `fetch` with POST and parses the SSE `ReadableStream`. Unsubscribe → `
 
 ## Design
 - `API_BASE_URL` injection token set to `http://localhost:5080` (in `core/`, used by every API call from here on).
-- `fetch` comes from a `FETCH` injection token (default: `globalThis.fetch`). Tests provide a small hand-written fake, no mocking library.
+- `fetch` comes from a `FETCH` injection token. The default factory is `() => globalThis.fetch.bind(globalThis)`: calling an unbound
+  `fetch` as `this.fetch(...)` throws "Illegal invocation" in browsers, while Node doesn't check, so tests alone would not catch it.
+  Tests provide a small hand-written fake, no mocking library.
 - A pure SSE parser `parseSse(buffer) → { events, rest }`. The caller keeps `rest` and prepends it to the next chunk.
   It handles events split across chunks, several events in one chunk, and `\r\n`.
-- The Observable errors on non-2xx (surfacing ProblemDetails) and completes when the stream ends.
+- The Observable errors on non-2xx and completes when the stream ends. The error message is the first entry of the ProblemDetails
+  `errors` map if there is one, else its `title`, else `HTTP <status>`.
 - Do **not** use `EventSource`: it is GET-only and auto-reconnects, which would restart the search.
 
 ## Tests (Vitest)

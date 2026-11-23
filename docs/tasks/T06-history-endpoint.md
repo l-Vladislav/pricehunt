@@ -13,6 +13,8 @@
 - `startDate > endDate` → 400.
 - `page` starts at 1. `pageSize` is 1..100, default 20.
 - Validation uses the same built-in Minimal API validation as T05b (`[AsParameters]` with `[AllowedValues]` and `[Range]`). Invalid input → 400.
+- `HistoryQuery` is a record whose optional parameters have default values (`int Page = 1`). On a class, a non-nullable property
+  with an initializer still counts as required, so `/api/history` without `page` would return 400.
 - Project to a DTO inside the query (`Select`). No entity is returned.
 
 ## Tests (integration: `PriceHuntApiFactory`, `GET /api/history` over HTTP)
@@ -24,6 +26,7 @@ Seed rows through `AppDbContext` in the factory's database, then call the endpoi
 - I5: failed rows are returned with a null price and sort last by price, asc and desc.
 - Sorting by every column, asc and desc, returns the right order (runs in SQLite, so client-side evaluation or a translation error fails the test).
 - Paging: `total` is correct, pages don't overlap, the last page is partial.
+- No query string at all → 200 with the defaults (`date desc`, page 1, 20 items).
 - Invalid `sortBy`, `page < 1`, `pageSize` out of range, `startDate > endDate` → 400.
 - I4: `date` in the JSON is UTC and ends with `Z`.
 - End to end: run a search through `POST /api/search` (advance time to the end), then the same search's rows appear in `GET /api/history`.

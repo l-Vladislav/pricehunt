@@ -28,7 +28,8 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
 1. Create a 6 s timeout CTS with `new CancellationTokenSource(TimeSpan.FromSeconds(6), timeProvider)` and link it to `HttpContext.RequestAborted`.
    The timer must belong to the timeout CTS: `CancelAfter` on a linked CTS runs on the system clock and ignores `FakeTimeProvider`.
 2. Start one task per selected supplier. A task returns one event (`Quote` or `SupplierFailed`), or ends cancelled when the token fires first.
-3. One loop runs `await foreach` over `Task.WhenEach(tasks).WithCancellation(linkedToken)`, which returns tasks in completion order.
+3. One loop enumerates `Task.WhenEach(tasks)` with the linked token, which returns tasks in completion order
+   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03).
    For each event it persists first (with `CancellationToken.None`, so a received response is never lost), then yields it to the HTTP stream.
    This is the only place that touches `DbContext`. When the token fires, the loop exits at once, without waiting for pending suppliers,
    and a result that completes after that is dropped.
@@ -38,10 +39,14 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
    so the DB is final when the stream closes. A `finally` block also covers a consumer that stops enumerating early: it cancels
    the linked CTS, awaits all supplier tasks and writes `Cancelled` if no status was written yet.
 
+6. SQLite allows one writer at a time. The recorder passes its writes through one `SemaphoreSlim(1, 1)`, so concurrent searches
+   queue in the process instead of retrying on a locked database file (see "Checked by a spike").
+
 ### Streaming contract (SSE over `fetch`, see ADR-0001)
 `POST /api/search` with body `{ searchId, fromLocation, toLocation, fromDate, toDate, supplierIds?: string[] }`.
 The client creates `searchId` (`crypto.randomUUID()`) and the server uses it as the search's Id. So the client knows the id
 before any event arrives and can drop events of an older search, `started` included (SC6).
+Dates on the wire (`fromDate`, `toDate`, `startDate`, `endDate`) are `yyyy-MM-dd`. The client builds them with `toIsoDate` (T07b).
 The response is `text/event-stream`. Every payload carries a `searchId`. JSON is camelCase, enums included (`JsonStringEnumConverter` with camelCase).
 
 | event | data |
@@ -65,6 +70,18 @@ returns `{ items: [...], total, page, pageSize }`. An item is
 - `SupplierResponses` (Id PK, SearchId FK, SupplierId FK, Outcome `Success`/`Failed`, PriceMinor? (USD cents, null on failure), ResponseTimeMs, ReceivedAtUtc).
   Indexes: EF's default ones on the foreign keys, plus `Searches(CreatedAtUtc)` for the history date filter (I4).
 
+## Checked by a spike
+Before T01 the risky parts of this plan were built once in a throwaway copy (not committed) with integration tests and a load test.
+Confirmed: the orchestrator design (manual enumeration, `[EnumeratorCancellation]`, the `finally`, late results dropped, `Cancelled`
+written once), `SseItem<object>` with derived fields and camelCase enums, abort through `TestServer`, built-in validation on records
+and on `[AsParameters]` with `IValidatableObject`, the in-memory SQLite factory, the UTC converter, `HasData`, and null-last price sorting in SQL.
+Found and fixed in the tasks:
+- Concurrent searches waited seconds for the SQLite write lock. With 10 searches at once `ended` came at 7.4 s instead of 6 s;
+  with 100, 16 of 600 responses that arrived in time were lost. One in-process writer (`SemaphoreSlim`) brought it to 6.05 s
+  and 600 of 600, and 400 searches at once still end by 6.7 s. See T04 and the README trade-offs.
+- A `[AsParameters]` class with `int Page { get; set; } = 1` makes `page` required. T06 uses a record with default values.
+- Time-advance and factory-disposal rules for tests (`AGENTS.md`, "Testing rules").
+
 ## Tasks
 
 Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR each. A task too big for one PR is split into subtasks (see `AGENTS.md`).
@@ -79,7 +96,10 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T05b](tasks/T05b-search-validation.md) | SSE search endpoint: validation, trimming | SS1, I6 | [ ] |
 | [T06](tasks/T06-history-endpoint.md) | History endpoint: filters, sorting, paging | HS1, HS2, I4–I6 | [ ] |
 | [T07](tasks/T07-client-stream.md) | Client SSE-over-fetch stream client | SC2, SC6 | [ ] |
-| [T08](tasks/T08-search-page.md) | Search page: form, sorted results, progress, stale guard | SC1–SC3, SC5, SC6, I1 | [ ] |
+| [T07b](tasks/T07b-material-setup.md) | Angular Material setup, date adapter, `toIsoDate` (ADR-0002) | — | [ ] |
+| [T08a](tasks/T08a-search-store.md) | Search store: sorted results, progress, stale guard | SC2, SC3, SC5, SC6, I1 | [ ] |
+| [T08b](tasks/T08b-search-page.md) | Search page: form, result list, progress line | SC1, SC2, SC5 | [ ] |
 | [T09](tasks/T09-no-flicker.md) | Smooth re-ordering (FLIP) | SC4 | [ ] |
-| [T10](tasks/T10-history-page.md) | History page: filters, sortable paged table | HC1, HC2, I5 | [ ] |
+| [T10a](tasks/T10a-history-filters.md) | History page: route, API client, filters, table | HC1, HC2, I5 | [ ] |
+| [T10b](tasks/T10b-history-table.md) | History page: sorting, paging, skeleton | HC2 | [ ] |
 | [T11](tasks/T11-readme-release.md) | README, clean-clone verification | SS6, D1, D2, D4 | [ ] |

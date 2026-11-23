@@ -14,7 +14,8 @@ Read the changed files, then answer **every** item with ✅, ❌ + file:line, or
 - [ ] Every supplier call receives the linked token. The hanging supplier ends only through that token.
 - [ ] Each supplier task isolates its own exceptions. One failure can't fault the whole search (SS4).
 - [ ] Cancellation of the linked token is not reported as a supplier failure.
-- [ ] The loop is `Task.WhenEach(...).WithCancellation(token)` and exits as soon as the token fires.
+- [ ] The loop enumerates `Task.WhenEach(...)` with the linked token and exits as soon as the token fires.
+- [ ] Every DB write goes through the recorder's `SemaphoreSlim(1, 1)` (SQLite has one writer).
 - [ ] Results arriving after the deadline are not yielded or streamed.
 - [ ] Each response is persisted (with `CancellationToken.None`) before it is yielded.
 - [ ] A caller cancellation writes `Cancelled` and then rethrows `OperationCanceledException`. A timeout ends as `TimedOut`.

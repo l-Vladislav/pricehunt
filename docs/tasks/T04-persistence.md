@@ -12,13 +12,20 @@ EF Core + SQLite. The schema is created on startup via `Database.Migrate()` (mig
   so the JSON gets a `Z` and the browser shows the right time.
 - Enums are stored as strings, so the DB stays readable.
 - The recorder uses its own `DbContext` via `IDbContextFactory<AppDbContext>`. The context is never shared across threads.
+- All recorder writes go through one `SemaphoreSlim(1, 1)` held by the singleton recorder. SQLite has one writer; without
+  the gate, concurrent searches retry on the locked file and responses reach the client seconds late or miss the deadline
+  (measured in the spike, see plan.md). A server database would not need this; the README says so.
+  No automated test covers the gate: the in-memory test database has no file lock, so 20 parallel searches pass without it
+  (checked in the spike). The PR states this.
 - Write the search row in `StartAsync` (`Status = Running`). Insert responses as they arrive, before they are streamed.
   Response inserts and the final status use `CancellationToken.None` (see plan.md, "Concurrency model").
 - Connection string: `ConnectionStrings:Default` from configuration. When it is not set, `Data Source=<ContentRootPath>/pricehunt.db`,
-  so the file lands in the API folder whatever the working directory is.
+  so the file lands in the API folder whatever the working directory is. Read it inside `AddDbContextFactory((sp, options) => ...)`,
+  not before `Build()`: only then does the test factory's override apply.
+- DI: `AddDbContextFactory<AppDbContext>`, `ISearchRecorder` → `EfSearchRecorder` and `SearchOrchestrator` (all singletons).
 
 ## Test setup
-Extend `PriceHuntApiFactory` (T01): set `ConnectionStrings:Default` to a shared-cache in-memory database with a unique name
+Extend `PriceHuntApiFactory` (T01): set `ConnectionStrings:Default` with `builder.UseSetting(...)` to a shared-cache in-memory database with a unique name
 (`Data Source=test-<guid>;Mode=Memory;Cache=Shared`) and keep one connection open for the factory's lifetime, so the DB survives.
 Also swap in `FakeTimeProvider` and the sequence `IRandomSource`. Each test creates its own factory.
 This keeps the T01 smoke test off the real `pricehunt.db` once `Migrate()` runs on startup.
