@@ -18,7 +18,7 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
 ```
 
 ### Server layout (`server/PriceHunt.Api`)
-- `Suppliers/`: `ISupplier`, `SimulatedSupplier`, `SupplierBehavior` (Normal / Flaky / Hanging), `SupplierCatalog`.
+- `Suppliers/`: `ISupplier`, `SimulatedSupplier`, `SupplierBehavior` (Normal / Flaky / Hanging), `SupplierCatalog`, `SupplierEndpoints`.
 - `Search/`: `SearchRequest`, `SearchEvent` types, `SearchOrchestrator`, `SearchEndpoints`.
 - `History/`: `HistoryQuery`, `HistoryEndpoints`.
 - `Data/`: `AppDbContext`, entities. EF migrations go to the default `Migrations/` folder.
