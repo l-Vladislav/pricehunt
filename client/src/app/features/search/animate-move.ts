@@ -1,7 +1,6 @@
 import { MediaMatcher } from "@angular/cdk/layout";
 import { Directive, ElementRef, afterRenderEffect, inject, input } from "@angular/core";
 
-/** Slides a list row from its old position to the new one when its index changes (FLIP). */
 @Directive({ selector: "[appAnimateMove]" })
 export class AnimateMove {
 	readonly index = input.required<number>({ alias: "appAnimateMove" });

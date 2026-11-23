@@ -274,7 +274,6 @@ describe("SearchPage", () => {
 		const originalRect = Element.prototype.getBoundingClientRect;
 		let animated: { row: Element; keyframes: unknown; options: unknown }[];
 		let listTop: number;
-		// How far a running animation currently shifts a row from its place in the list.
 		let shifts: Map<Element, number>;
 
 		beforeEach(() => {
@@ -300,7 +299,6 @@ describe("SearchPage", () => {
 
 		afterEach(() => {
 			Element.prototype.getBoundingClientRect = originalRect;
-			// jsdom has no animate, so there is nothing to put back.
 			Reflect.deleteProperty(Element.prototype, "animate");
 			vi.unstubAllGlobals();
 		});
