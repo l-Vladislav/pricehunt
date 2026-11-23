@@ -41,8 +41,10 @@ public static class HistoryEndpoints
         var sorted = query.SortBy switch
         {
             "route" => desc
-                ? rows.OrderByDescending(x => x.Search.FromLocation).ThenByDescending(x => x.Search.ToLocation)
-                : rows.OrderBy(x => x.Search.FromLocation).ThenBy(x => x.Search.ToLocation),
+                ? rows.OrderByDescending(x => EF.Functions.Collate(x.Search.FromLocation, "NOCASE"))
+                    .ThenByDescending(x => EF.Functions.Collate(x.Search.ToLocation, "NOCASE"))
+                : rows.OrderBy(x => EF.Functions.Collate(x.Search.FromLocation, "NOCASE"))
+                    .ThenBy(x => EF.Functions.Collate(x.Search.ToLocation, "NOCASE")),
             "supplier" => desc ? rows.OrderByDescending(x => x.SupplierName) : rows.OrderBy(x => x.SupplierName),
             // Failed rows (null price) go last in both directions (I5).
             "price" => desc

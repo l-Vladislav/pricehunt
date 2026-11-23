@@ -16,9 +16,11 @@ public class HistoryEndpointTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Theory]
-    [InlineData("?startDate=2026-11-22T22:00:00Z&endDate=2026-11-23T22:00:00Z")]
-    [InlineData("?startDate=2026-11-23T00:00:00%2B02:00&endDate=2026-11-24T00:00:00%2B02:00")]
-    public async Task HS1_I4_DateFilter_AppliesToTheSearchTimestamp_StartInclusive_EndExclusive(string query)
+    [InlineData("?startDate=2026-11-22T22:00:00Z&endDate=2026-11-23T22:00:00Z", 1, 2)]
+    [InlineData("?startDate=2026-11-23T00:00:00%2B02:00&endDate=2026-11-24T00:00:00%2B02:00", 1, 2)]
+    [InlineData("?startDate=2026-11-22T22:00:00Z", 1, 3)]
+    [InlineData("?endDate=2026-11-23T22:00:00Z", 0, 2)]
+    public async Task HS1_I4_DateFilter_AppliesToTheSearchTimestamp_StartInclusive_EndExclusive(string query, int first, int last)
     {
         await using var factory = new PriceHuntApiFactory();
         DateTime[] timestamps =
@@ -33,8 +35,19 @@ public class HistoryEndpointTests
         var page = await GetPageAsync(factory, query);
 
         Assert.Equal(
-            ["2026-11-23T21:59:59Z", "2026-11-22T22:00:00Z"],
-            page.Items.Select(i => i.GetProperty("date").GetString()));
+            timestamps[first..(last + 1)].Reverse(),
+            page.Items.Select(i => i.GetProperty("date").GetDateTime()));
+    }
+
+    [Fact]
+    public async Task HS1_ResponsesOfEverySearchStatus_AreReturned()
+    {
+        await using var factory = new PriceHuntApiFactory();
+        var ids = await SeedAsync(factory, [.. Enum.GetValues<SearchStatus>().Select(s => Row($"{s}") with { Status = s })]);
+
+        var page = await GetPageAsync(factory, "");
+
+        Assert.Equal(ids.Values.Order(), page.Ids.Order());
     }
 
     [Theory]
@@ -176,6 +189,23 @@ public class HistoryEndpointTests
         Assert.Equal([ids["first"], ids["second"], ids["third"]], page.Ids);
     }
 
+    [Theory]
+    [InlineData("asc", "A,B,C,D")]
+    [InlineData("desc", "D,C,B,A")]
+    public async Task I6_SortByRoute_IgnoresCase(string sortDir, string expected)
+    {
+        await using var factory = new PriceHuntApiFactory();
+        var ids = await SeedAsync(factory,
+            Row("D") with { FromLocation = "Zurich", ToLocation = "Paris" },
+            Row("C") with { FromLocation = "berlin", ToLocation = "Rome" },
+            Row("A") with { FromLocation = "amsterdam", ToLocation = "Paris" },
+            Row("B") with { FromLocation = "Berlin", ToLocation = "oslo" });
+
+        var page = await GetPageAsync(factory, $"?sortBy=route&sortDir={sortDir}");
+
+        Assert.Equal(expected.Split(',').Select(k => ids[k]), page.Ids);
+    }
+
     [Fact]
     public async Task HS1_SortBySupplier_UsesTheName_NotTheId()
     {
@@ -241,8 +271,7 @@ public class HistoryEndpointTests
 
     [Theory]
     [InlineData("?page=1000000&pageSize=100")]
-    [InlineData("?startDate=2026-11-23T00:00:00Z")]
-    [InlineData("?endDate=2026-11-23T00:00:00Z")]
+    [InlineData("?pageSize=1")]
     public async Task HS1_EdgeOfTheValidRange_Returns200(string query)
     {
         await using var factory = new PriceHuntApiFactory();
@@ -307,7 +336,8 @@ public class HistoryEndpointTests
     }
 
     private sealed record SeedRow(
-        string Key, DateTime CreatedAtUtc, string FromLocation, string ToLocation, string SupplierId, long? PriceMinor, long ResponseTimeMs);
+        string Key, DateTime CreatedAtUtc, string FromLocation, string ToLocation, string SupplierId, long? PriceMinor, long ResponseTimeMs,
+        SearchStatus Status = SearchStatus.Completed);
 
     private static SeedRow Row(string key = "row") => new(key, Noon, "Berlin", "Paris", "comet", 10_000, 1000);
 
@@ -326,7 +356,7 @@ public class HistoryEndpointTests
                 FromDate = new DateOnly(2026, 12, 1),
                 ToDate = new DateOnly(2026, 12, 5),
                 CreatedAtUtc = row.CreatedAtUtc,
-                Status = SearchStatus.Completed,
+                Status = row.Status,
             };
             var response = new SupplierResponse
             {
