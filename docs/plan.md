@@ -29,7 +29,8 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
    The timer must belong to the timeout CTS: `CancelAfter` on a linked CTS runs on the system clock and ignores `FakeTimeProvider`.
 2. Start one task per selected supplier. A task returns one event (`Quote` or `SupplierFailed`), or ends cancelled when the token fires first.
 3. One loop enumerates `Task.WhenEach(tasks)` with the linked token, which returns tasks in completion order
-   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03).
+   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03). The token is checked right after each
+   `MoveNextAsync`, inside the same `try`, so a timeout always ends as `TimedOut`.
    For each event it persists first (with `CancellationToken.None`, so a received response is never lost), then yields it to the HTTP stream.
    This is the only place that touches `DbContext`. When the token fires, the loop exits at once, without waiting for pending suppliers,
    and a result that completes after that is dropped before it is stored. A stored result is always yielded.
@@ -41,6 +42,40 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
 
 6. SQLite allows one writer at a time. The recorder passes its writes through one `SemaphoreSlim(1, 1)`, so concurrent searches
    queue in the process instead of retrying on a locked database file (see "Checked by a spike").
+
+Search status in the DB. `Running` is written by `StartAsync` before any supplier starts; the final status is written once.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Running: StartAsync
+    Running --> Completed: every supplier answered or failed
+    Running --> TimedOut: 6 s timeout fired
+    Running --> Cancelled: RequestAborted, or the consumer stopped early (finally)
+    Completed --> [*]
+    TimedOut --> [*]
+    Cancelled --> [*]
+```
+
+One step of the loop. A result is either dropped before it is stored, or stored and then always sent.
+
+```mermaid
+sequenceDiagram
+    participant L as Loop (Task.WhenEach)
+    participant R as Recorder (SQLite, one writer)
+    participant C as SSE response
+    L->>L: MoveNextAsync, then check the linked token (one try)
+    alt timeout fired
+        L->>R: FinishAsync(TimedOut)
+        L->>C: ended (timedOut)
+    else caller cancelled
+        L->>R: FinishAsync(Cancelled) in finally
+        Note over C: nothing sent, the client is gone
+    else token not fired
+        L->>R: RecordAsync(CancellationToken.None)
+        Note over L,R: the deadline may pass here, the result is still sent
+        L->>C: quote or supplier-failed
+    end
+```
 
 ### Streaming contract (SSE over `fetch`, see ADR-0001)
 `POST /api/search` with body `{ searchId, fromLocation, toLocation, fromDate, toDate, supplierIds?: string[] }`.

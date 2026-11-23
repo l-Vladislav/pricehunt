@@ -30,7 +30,8 @@ public interface ISearchRecorder {
 - `SupplierInfo(string Id, string Name)` comes from the catalog (T01).
 - The dates are nullable only for validation (T05b). Past the endpoint they are always set, and the orchestrator builds `SearchCriteria` from them.
 - Empty or null `SupplierIds` means all suppliers. Otherwise the orchestrator filters the registered suppliers by the ids, so the
-  selection is in catalog order (T02's fake random sequence relies on it) and a repeated id counts once. T05a passes the request through as is.
+  selection is in catalog order (T02's fake random sequence relies on it) and a repeated id counts once. `StartAsync` gets this
+  resolved list, not `request.SupplierIds`, so `SearchSuppliers` never sees a duplicate key. T05a passes the request through as is.
 - The orchestrator measures `ResponseTimeMs` with `TimeProvider.GetElapsedTime` and sets `ReceivedAtUtc` and `createdAtUtc` from `TimeProvider.GetUtcNow()`.
 - `StartAsync` runs before any supplier starts, so response rows always have their search row.
 
@@ -43,10 +44,13 @@ public interface ISearchRecorder {
 - One loop over `Task.WhenEach(tasks)` with the linked token yields events in completion order. When the token fires, the loop
   exits at once (it doesn't wait for pending suppliers).
 - C# doesn't allow `yield return` inside a `try` that has a `catch` (CS1626). So enumerate by hand: `GetAsyncEnumerator(linkedToken)`,
-  wrap only `MoveNextAsync()` in `try/catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)`
-  to end with `TimedOut`, and `yield` outside that `try`. A caller cancellation is not caught: it propagates after the final write.
-- For each completed task, in this order: check the linked token (a result that completes after the deadline is dropped, not
-  stored), persist it (`CancellationToken.None`), yield it. Once persisted, a result is always yielded and counted, even if the
+  put `MoveNextAsync()` and then `linkedToken.ThrowIfCancellationRequested()` in one
+  `try/catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)` that ends
+  with `TimedOut`, and `yield` outside that `try`. The check must sit inside the `try`: `WhenEach` can hand out a task that
+  completed after the token fired, and a check outside would turn a timeout into `Cancelled`. A caller cancellation is not
+  caught: it propagates after the final write.
+- For each completed task, in this order: check the linked token as above (a result that completes after the deadline is
+  dropped, not stored), persist it (`CancellationToken.None`), yield it. Once persisted, a result is always yielded and counted, even if the
   deadline passes during the write, so the DB rows always match `ended.responded`.
 - Outcome:
   - all done → `Completed`;
@@ -75,10 +79,13 @@ A test that checks `ResponseTimeMs` advances exactly to that supplier's completi
   and the hanging task observed cancellation.
 - SS3: all suppliers done before 6 s → `Ended(Completed)`.
 - SS5, I7: caller cancels → enumeration throws `OperationCanceledException`, every supplier observed the token, recorder got `Cancelled`.
-- SS1: only the selected suppliers are queried, in catalog order, and a repeated id starts one call.
+- SS1: only the selected suppliers are queried, in catalog order, and a repeated id starts one call; `StartAsync` and
+  `SearchStarted.Suppliers` get the same distinct list.
 - SS3, I3: the deadline passes while a result is being persisted (fake recorder advances time inside `RecordAsync`) → that result
-  is still yielded and counted, and `responded` equals the number of `RecordAsync` calls.
-- SS3, I3: a result that completes after the deadline is **not** yielded and not recorded (the fake ignores `ct`; fire the timeout first, then complete its TCS).
+  is still yielded and counted, `responded` equals the number of `RecordAsync` calls, and the stream ends with `Ended(TimedOut)`.
+- SS3, I3: a result that completes after the deadline is **not** yielded and not recorded. All other suppliers have already
+  answered, so the late fake is the only one pending (it ignores `ct`); fire the timeout, then complete its TCS → the next event
+  is `Ended(TimedOut)` and `RecordAsync` was not called for it.
 - I7: the consumer stops enumerating mid-stream without cancelling the token (e.g. a write to a closed response throws and the writer
   disposes the enumerator)
   → disposal completes, every supplier observed cancellation, and the recorder gets `Cancelled` exactly once.

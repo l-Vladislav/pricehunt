@@ -8,7 +8,7 @@
 - All filters are optional:
   - `startDate`/`endDate`: the search timestamp, inclusive whole UTC days (I4);
   - `supplierIds`: 0..n, empty = all;
-  - `fromLocation`/`toLocation`: trimmed, then case-insensitive equality (I6). SQLite `lower()` folds ASCII only, which is fine here.
+  - `fromLocation`/`toLocation`: trimmed, then case-insensitive equality (I6). Empty after trimming = no filter. SQLite `lower()` folds ASCII only, which is fine here.
 - `sortBy` whitelist: `date|route|supplier|price|responseTime`, `sortDir`: `asc|desc`. Default: `date desc`, newest first. `date` is the search timestamp (I4), `route` is from then to location, `supplier` is the supplier name. Failed rows (null price) sort last for both directions of `price`. Add a stable secondary sort by `Id`.
 - `startDate > endDate` → 400.
 - `page` starts at 1. `pageSize` is 1..100, default 20.
