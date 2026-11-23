@@ -99,12 +99,12 @@ describe("SearchStore", () => {
 	});
 
 	it.each([
-		[[10, 20, 30]],
-		[[10, 30, 20]],
-		[[20, 10, 30]],
-		[[20, 30, 10]],
-		[[30, 10, 20]],
-		[[30, 20, 10]],
+		[[9.5, 20, 100]],
+		[[9.5, 100, 20]],
+		[[20, 9.5, 100]],
+		[[20, 100, 9.5]],
+		[[100, 9.5, 20]],
+		[[100, 20, 9.5]],
 	])("SC2, SC3: results appear one by one, sorted by price, for arrival order %j", (prices) => {
 		const { id, events } = startSearch();
 		events.next(started(id));
@@ -185,9 +185,9 @@ describe("SearchStore", () => {
 		const { id, events } = startSearch();
 		events.next(started(id));
 
-		events.next(quote(id, "s1", 10));
-		expect(store.responded()).toBe(1);
 		events.next(failed(id, "s2"));
+		expect(store.responded()).toBe(1);
+		events.next(quote(id, "s1", 10));
 		expect(store.responded()).toBe(2);
 
 		expect(store.total()).toBe(3);
