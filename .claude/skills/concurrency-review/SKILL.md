@@ -13,7 +13,8 @@ Read the changed files, then answer **every** item with ✅, ❌ + file:line, or
       `RequestAborted`. No `CancelAfter` on the linked CTS. The code can tell which one fired.
 - [ ] Every supplier call receives the linked token. The hanging supplier ends only through that token.
 - [ ] Each supplier task isolates its own exceptions. One failure can't fault the whole search (SS4).
-- [ ] Cancellation of the linked token is not reported as a supplier failure.
+- [ ] Code rule, no test: a supplier task doesn't catch cancellation of the linked token as a failure. Such an event could
+      never be taken by the loop, so no test can see it; check the code.
 - [ ] The loop enumerates `Task.WhenEach(...)` with the linked token and takes no task after the token fired (`docs/plan.md`,
       "Concurrency model", step 3).
 - [ ] Every DB write goes through the recorder's `SemaphoreSlim(1, 1)` (SQLite has one writer).

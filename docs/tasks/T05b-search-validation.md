@@ -11,6 +11,8 @@ Use the built-in Minimal API validation (`builder.Services.AddValidation()`), no
 - Dates are `[Required] DateOnly?`. A plain `DateOnly` would bind a missing date as `0001-01-01` and pass validation.
   `fromDate <= toDate` in `IValidatableObject`.
 - `supplierIds` empty/null → all suppliers. An unknown id → 400, checked in the handler because it needs the supplier catalog.
+- The handler's own 400s (reused `searchId`, unknown supplier) use `TypedResults.ValidationProblem` with the field name as the key,
+  the same shape as the built-in validation, so the client shows the message (T07).
 
 ## Tests (integration: `PriceHuntApiFactory`)
 - SS1: each invalid request → 400 ProblemDetails: missing location, missing date, `fromDate > toDate`, unknown supplier id, empty `searchId`, reused `searchId`.

@@ -10,6 +10,11 @@ A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T0
 - The store is provided by `SearchPage` (`providers: [SearchStore]`), not in root. Leaving the page destroys it, which aborts
   the request, and the server records `Cancelled` (SS5). Coming back starts with an empty form.
 - `search(request)`: `switchMap` to the stream client, so the previous request is aborted automatically.
+  It first resets the state for the new search: new `searchId`, `results` and `suppliers` empty, `responded` and `total` 0
+  (`total` is set by `started`), `status` `running`, no `errorMessage`. Only then is the request sent.
+- A stream error is caught inside the `switchMap` projection (`catchError` on the inner Observable) and turned into the
+  `error` state. Otherwise the error ends the outer subscription and every later `search()` does nothing.
+  A stream that completes without `ended` also ends in `error` with the message "Search ended unexpectedly", so the page never stays `running`.
 - **Stale guard:** each search gets a new `searchId` from `crypto.randomUUID()`, sent with the request.
   Every event, `started` included, is ignored unless its `searchId` matches. This is a second line of defence on top of `switchMap`.
 - Add each result with `[...results, r].sort(byPrice)`. `Array.prototype.sort` is stable, so ties keep their arrival order.
@@ -20,10 +25,15 @@ A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T0
   Add `provideHttpClient(withFetch())` to `app.config.ts`.
 
 ## Tests (Vitest, TestBed, fake stream client driven by a Subject)
+The fake stream client creates one Subject per call and keeps them all, so a test can check that A's was unsubscribed and can
+push events tagged with an old `searchId` into B's Subject.
 - SC2, SC3: results arrive one by one and stay sorted for any arrival order.
 - SC6: starting search B while A is running aborts A, and late events from A never reach the state.
-- SC6: events with an old `searchId`, `started` included, fed straight to the store are ignored (tests the guard without `switchMap`).
+- SC6: after A delivered a quote, starting B empties `results` and resets `responded` and `total` before any event of B arrives.
+- SC6: events with an old `searchId`, `started` included, pushed into B's Subject are ignored (tests the guard
+  without `switchMap`).
 - SC5, I1: `responded` counts both quotes and failures.
-- SC5: `ended` sets the final status. A stream error sets `error` and `errorMessage`.
+- SC5: `ended` sets the final status. A stream error sets `error` and `errorMessage`. A stream that completes without `ended` sets `error` and "Search ended unexpectedly".
+- SC5: after a stream error, a new `search()` runs and its events update the state.
 - SS5: destroying the store (its injector) aborts the running stream.
 - `SuppliersApi` calls `/api/suppliers` under `API_BASE_URL` (`HttpTestingController`).

@@ -11,7 +11,7 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
 │  SearchStore(signals)│ ◄── SSE events ──── │   SearchOrchestrator                     │
 │  SearchStreamClient  │   abort = cancel    │     linked CTS: RequestAborted + 6s      │
 │   (fetch+AbortCtrl)  │                     │     Task per supplier → Task.WhenEach    │
-├──────────────────────┤                     │     one loop: yield + persist            │
+├──────────────────────┤                     │     one loop: persist + yield            │
 │ HistoryPage          │  GET /api/history   │   ISupplier ×7 (simulated)               │
 │  table/sort/paging   │ ──────────────────► │ HistoryEndpoint → EF Core → SQLite       │
 └──────────────────────┘                     └──────────────────────────────────────────┘
@@ -27,11 +27,12 @@ client (Angular 22)                         server (ASP.NET Core 10, Minimal API
 ### Concurrency model
 1. Create a 6 s timeout CTS with `new CancellationTokenSource(TimeSpan.FromSeconds(6), timeProvider)` and link it to `HttpContext.RequestAborted`.
    The timer must belong to the timeout CTS: `CancelAfter` on a linked CTS runs on the system clock and ignores `FakeTimeProvider`.
-2. Start one task per selected supplier. A task returns one event (`Quote` or `SupplierFailed`), or ends cancelled when the token fires first.
+2. Start one task per selected supplier. A task returns one result (price or failure, stamped with the response time and the time
+   of the answer), or ends cancelled when the token fires first.
 3. One loop enumerates `Task.WhenEach(tasks)` with the linked token, which returns tasks in completion order
-   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03). For each task it persists the event first
-   (with `CancellationToken.None`, so a started write is never cut off), then yields it to the HTTP stream.
-   This is the only place that touches `DbContext`. A stored result is always yielded.
+   (by hand, because C# forbids `yield` inside a `try` with a `catch`; see T03a). For each task it persists the result first
+   (with `CancellationToken.None`, so a started write is never cut off), then yields its event (`quote` or `supplier-failed`) to the HTTP stream.
+   Supplier tasks never touch `DbContext`: a search's writes run one after another in the orchestrator's own flow. A stored result is always yielded.
 
    The loop takes no task after the token fired. While a task has not been taken yet, `MoveNextAsync` throws as soon as the
    token has fired, even if that task already completed, and the loop exits without waiting for pending suppliers. So a result
@@ -93,7 +94,8 @@ sequenceDiagram
 `POST /api/search` with body `{ searchId, fromLocation, toLocation, fromDate, toDate, supplierIds?: string[] }`.
 The client creates `searchId` (`crypto.randomUUID()`) and the server uses it as the search's Id. So the client knows the id
 before any event arrives and can drop events of an older search, `started` included (SC6).
-Dates on the wire (`fromDate`, `toDate`, `startDate`, `endDate`) are `yyyy-MM-dd`. The client builds them with `toIsoDate` (T07b).
+The search dates on the wire (`fromDate`, `toDate`) are `yyyy-MM-dd`. The client builds them with `toIsoDate` (T07b).
+The history bounds (`startDate`, `endDate`) are ISO 8601 UTC instants, see below.
 The response is `text/event-stream`. Every payload carries a `searchId`. JSON is camelCase, enums included (`JsonStringEnumConverter` with camelCase).
 
 | event | data |
@@ -107,7 +109,8 @@ The server never sends `Cancelled`, because the client is gone by then. That sta
 
 `GET /api/suppliers` returns `[{ id, name }]`.
 `GET /api/history?startDate&endDate&supplierIds=a&supplierIds=b&fromLocation&toLocation&sortBy&sortDir&page&pageSize`
-returns `{ items: [...], total, page, pageSize }`. An item is
+returns `{ items: [...], total, page, pageSize }`. `startDate` (inclusive) and `endDate` (exclusive) are UTC instants such as
+`2026-11-22T22:00:00.000Z`: the client sends the local midnight of the first day and of the day after the last day (I4). An item is
 `{ id, date, fromLocation, toLocation, supplierName, price, responseTimeMs }`: `date` is the search timestamp (I4), `price` is USD or `null` for a failure (I5). `sortBy` is one of `date|route|supplier|price|responseTime` (whitelist).
 
 ### Data model (SQLite)
@@ -140,7 +143,8 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 |----|------|------|--------|
 | [T01](tasks/T01-foundation.md) | Foundation: CORS, supplier catalog and endpoint, test factory | S1, D1, D3 | [ ] |
 | [T02](tasks/T02-suppliers.md) | Simulated suppliers | S1–S4 | [ ] |
-| [T03](tasks/T03-orchestrator.md) | Search orchestrator (stream, timeout, isolation, cancellation) | SS1–SS5, I1–I3, I7 | [ ] |
+| [T03a](tasks/T03a-orchestrator-core.md) | Search orchestrator: stream, timeout, isolation | SS1–SS4, P2, I1–I3 | [ ] |
+| [T03b](tasks/T03b-orchestrator-cancellation.md) | Search orchestrator: cancellation, races at the deadline | SS3, SS5, I1, I3, I7 | [ ] |
 | [T04](tasks/T04-persistence.md) | EF Core model, auto-migrate, recording searches and responses | P1–P3, I3, I5, I7 | [ ] |
 | [T05a](tasks/T05a-search-stream.md) | SSE search endpoint: streaming, timeout, cancellation | SS2–SS5, SC6, I1, I2, I7 | [ ] |
 | [T05b](tasks/T05b-search-validation.md) | SSE search endpoint: validation, trimming | SS1, I6 | [ ] |
@@ -150,6 +154,6 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T08a](tasks/T08a-search-store.md) | Search store: sorted results, progress, stale guard | SC2, SC3, SC5, SC6, SS5, I1 | [ ] |
 | [T08b](tasks/T08b-search-page.md) | Search page: form, result list, progress line | SC1, SC2, SC4, SC5 | [ ] |
 | [T09](tasks/T09-no-flicker.md) | Smooth re-ordering (FLIP) | SC4 | [ ] |
-| [T10a](tasks/T10a-history-filters.md) | History page: route, API client, filters, table | HC1, HC2, I5 | [ ] |
+| [T10a](tasks/T10a-history-filters.md) | History page: route, API client, filters, table | HC1, HC2, I4, I5 | [ ] |
 | [T10b](tasks/T10b-history-table.md) | History page: sorting, paging, skeleton | HC2 | [ ] |
 | [T11](tasks/T11-readme-release.md) | README, clean-clone verification | SS6, D1, D2, D4 | [ ] |

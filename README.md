@@ -15,7 +15,7 @@ cd server && dotnet run --project PriceHunt.Api
 cd client && npm start
 ```
 
-Tests: `dotnet test --solution server/PriceHunt.sln` · `cd client && npx ng test --watch=false`
+Tests: `dotnet test --solution server/PriceHunt.sln` · `cd client && npm test -- --watch=false`
 
 ## Streaming: how and why
 _TODO (T11): summary of [ADR-0001](docs/adr/0001-streaming-transport.md)._

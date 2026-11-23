@@ -3,7 +3,7 @@
 
 ## Goal
 EF Core + SQLite. The schema is created on startup via `Database.Migrate()` (migrations are committed).
-`EfSearchRecorder : ISearchRecorder` (interface from T03) records the search, every response, and the final status.
+`EfSearchRecorder : ISearchRecorder` (interface from T03a) records the search, every response, and the final status.
 
 ## Design
 - Entities and tables as in plan.md, "Data model". `Suppliers` is seeded from the catalog with `HasData`.
@@ -42,5 +42,6 @@ This keeps the T01 smoke test off the real `pricehunt.db` once `Migrate()` runs 
 - P1, P2, I3: a full search (all 7) persists the search with its parameters and selected suppliers, `Status = TimedOut`, and one response row per supplier that answered (Success / Failed). The hanging supplier has no row (I3).
 - P2, I5: the failure row has `Outcome = Failed`, a null price and a response time.
 - I7: cancel the caller token mid-search → `Status = Cancelled` (finalize used `CancellationToken.None`), and suppliers still pending have no rows.
-- Times read back from the DB equal the `FakeTimeProvider` time that was written and have `Kind = Utc`. Checking `Kind` alone
+- Times read back from the DB through a new `AppDbContext` from the factory (a tracked entity would skip the converter) equal the
+  `FakeTimeProvider` time that was written and have `Kind = Utc`. Checking `Kind` alone
   is not enough: `ToUniversalTime()` also returns `Kind = Utc`.

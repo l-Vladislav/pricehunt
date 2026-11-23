@@ -1,7 +1,7 @@
 ---
 name: implement-task
-description: Implement one PriceHunt task (T01–T11) test-first against its task file in docs/tasks, ending in a pull request. Use when the user says "do T03", "implement task T05", "next task", or similar.
-argument-hint: [task id, e.g. T03]
+description: Implement one PriceHunt task (T01–T11) test-first against its task file in docs/tasks, ending in a pull request. Use when the user says "do T03a", "implement task T05", "next task", or similar.
+argument-hint: [task id, e.g. T03a]
 disable-model-invocation: true
 ---
 

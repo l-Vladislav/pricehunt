@@ -8,7 +8,7 @@ Both projects start with one command each. The API serves the supplier list the 
 - `server/PriceHunt.Api/Program.cs`: CORS for `http://localhost:4200` with any header and method (the JSON POST triggers a preflight).
   Delete the template's `app.MapGet("/", () => "Hello World!")`.
 - `Suppliers/SupplierCatalog`: the seven supplier ids and names (made-up names, no real companies).
-  `GET /api/suppliers` returns them as `[{ id, name }]`. T02 adds their behaviour.
+  Each is a `record SupplierInfo(string Id, string Name)` (T03a reuses it). `GET /api/suppliers` returns them as `[{ id, name }]`. T02 adds their behaviour.
 - Tests: add `Microsoft.AspNetCore.Mvc.Testing` (pre-approved). Create `PriceHuntApiFactory : WebApplicationFactory<Program>`.
   T04 and T05a extend this same factory, so nothing is thrown away later.
 - Delete the placeholder `server/PriceHunt.Tests/UnitTest1.cs`: the smoke test replaces it.
@@ -21,3 +21,6 @@ Both projects start with one command each. The API serves the supplier list the 
 
 ## Tests (integration: `PriceHuntApiFactory`)
 - S1: `GET /api/suppliers` returns 200 with seven suppliers, each with an id and a name.
+- CORS: `OPTIONS /api/search` with `Origin: http://localhost:4200`, `Access-Control-Request-Method: POST` and
+  `Access-Control-Request-Headers: content-type` returns `Access-Control-Allow-Origin: http://localhost:4200` and allows `content-type`.
+  All client tests use fakes, so without this test a broken preflight shows up only in a manual run.

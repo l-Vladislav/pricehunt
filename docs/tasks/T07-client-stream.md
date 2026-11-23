@@ -3,6 +3,8 @@
 
 ## Goal
 `SearchStreamClient.search(request): Observable<SearchEvent>`. The request includes the `searchId` created by the caller.
+`SearchEvent` is a union tagged by the SSE event name, with the payloads from the plan.md table:
+`{ type: "started", data: … } | { type: "quote", data: … } | { type: "supplier-failed", data: … } | { type: "ended", data: … }`.
 It uses `fetch` with POST and parses the SSE `ReadableStream`. Unsubscribe → `AbortController.abort()`.
 
 ## Design
@@ -12,12 +14,14 @@ It uses `fetch` with POST and parses the SSE `ReadableStream`. Unsubscribe → `
   Tests provide a small hand-written fake, no mocking library.
 - A pure SSE parser `parseSse(buffer) → { events, rest }`. The caller keeps `rest` and prepends it to the next chunk.
   It handles events split across chunks, several events in one chunk, and `\r\n`.
-- The Observable errors on non-2xx and completes when the stream ends. The error message is the first entry of the ProblemDetails
-  `errors` map if there is one, else its `title`, else `HTTP <status>`.
+- The Observable errors on non-2xx and completes when the stream ends. The error message is the first message of the first field
+  in the ProblemDetails `errors` map, else its `title`, else `HTTP <status>`. A body that is not JSON also gives `HTTP <status>`.
+  A rejected `fetch` (API not running) errors with "Server not reachable".
 - Do **not** use `EventSource`: it is GET-only and auto-reconnects, which would restart the search.
 
 ## Tests (Vitest)
 Delete `client/src/app/app.spec.ts` once these exist.
 - SC2: the parser handles all three chunking cases, and each event is emitted as soon as its chunk is read.
 - SC6: unsubscribing calls `abort()`.
-- A non-2xx response → Observable error with the message.
+- A non-2xx response → Observable error with the message, for each case: `errors` present, only `title`, a body that is not JSON.
+- A rejected `fetch` → Observable error with "Server not reachable".

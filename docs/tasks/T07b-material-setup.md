@@ -9,7 +9,8 @@ Add Angular Material with a theme, ready for T08b and T10b. No feature code.
   Review what the schematic changed and keep only what is needed.
 - The app stays zoneless. Recent Material versions don't need `@angular/animations`: if the schematic adds `provideAnimationsAsync()`
   or that package, remove them unless the build needs them.
-- `provideNativeDateAdapter()` in `app.config.ts`. Without a `DateAdapter`, every datepicker throws at runtime and in tests.
+- `provideNativeDateAdapter()` in `app.config.ts` and in the test providers file below (TestBed never loads `app.config.ts`).
+  Without a `DateAdapter`, every datepicker throws.
 - A `toIsoDate(date)` helper in `core/` turns a picked date into `yyyy-MM-dd` from its local year, month and day.
   `JSON.stringify(date)` would send UTC time instead, which shifts the day in UTC+ zones and fails `DateOnly` binding (400).
 - Component tests turn off Material animations by providing `MATERIAL_ANIMATIONS` with `{ animationsDisabled: true }` once,

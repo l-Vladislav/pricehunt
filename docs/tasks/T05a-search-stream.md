@@ -16,7 +16,7 @@
 - Client disconnect → orchestrator token cancelled → DB status `Cancelled`.
 
 ## Tests (integration: `PriceHuntApiFactory`)
-Extend the factory (T01, T04): wrap `ISearchRecorder` in a small decorator that completes a `TaskCompletionSource` in `FinishAsync`.
+Extend the factory (T01, T04): wrap `ISearchRecorder` in a small decorator that completes a `TaskCompletionSource` in `FinishAsync`, after the inner `FinishAsync` has returned (otherwise the test can read the row while it is still `Running`).
 Tests await it instead of polling. Read the response with `HttpCompletionOption.ResponseHeadersRead` and parse SSE events
 incrementally with a small helper in the test project. Advance time only after `started` is read, and read the expected events
 before advancing again. Every test waits for its search to end before the factory is disposed (see `AGENTS.md`).

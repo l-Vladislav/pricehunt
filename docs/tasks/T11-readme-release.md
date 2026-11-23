@@ -6,7 +6,7 @@
 2. Streaming: what and why (SS6). Summarise ADR-0001, including the rejected alternatives.
 3. Database and table structure, with an ER diagram (mermaid).
 4. Design decisions and trade-offs, including the interpretations table (I1–I8) from spec.md and a summary of ADR-0002 (Material, hand-written FLIP and skeletons). Also state the known limits:
-   the history date filter uses whole UTC days; a search stays `Running` if the server dies mid-search;
+   a search stays `Running` if the server dies mid-search;
    two requests reusing one `searchId` at the same moment fail on the primary key instead of a 400;
    a timeout that fires while the last result is being saved ends `Completed`, because every result arrived in time.
    Explain the SQLite write gate (`SemaphoreSlim`) as a SQLite-specific choice with the spike numbers from plan.md:
