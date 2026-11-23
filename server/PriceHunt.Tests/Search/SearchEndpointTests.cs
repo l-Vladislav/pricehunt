@@ -231,7 +231,7 @@ public class SearchEndpointTests
         var searchId = Guid.NewGuid();
         var body = Body(searchId);
         body["fromLocation"] = "  Berlin ";
-        body["toLocation"] = "	New York  ";
+        body["toLocation"] = "\tNew York  ";
 
         await AbortAfterStartedAsync(factory, await StartSearchAsync(client, body, Ct));
 
