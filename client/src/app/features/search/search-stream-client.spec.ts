@@ -27,7 +27,6 @@ function bytes(event: SearchEvent): Bytes {
 	return new TextEncoder().encode(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
 }
 
-/** Answers each call with what the test sets in `respond`, and keeps the calls. */
 class FakeFetch {
 	readonly calls: { url: string; init: RequestInit }[] = [];
 	respond: () => Promise<Response> = () => new Promise<Response>(() => undefined);
@@ -42,7 +41,6 @@ class FakeFetch {
 	}
 }
 
-/** A response body whose chunks the test sends one by one. */
 class FakeBody {
 	private controller!: ReadableStreamDefaultController<Bytes>;
 
@@ -65,7 +63,6 @@ class FakeBody {
 	}
 }
 
-/** Subscribes to a search. `next()` waits for one notification: an event, "complete" or the error. */
 class Recording {
 	private readonly notifications: unknown[] = [];
 	private wake: () => void = () => undefined;

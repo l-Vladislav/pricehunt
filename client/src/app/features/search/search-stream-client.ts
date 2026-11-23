@@ -5,13 +5,12 @@ import { FETCH } from "../../core/fetch";
 import { parseSse } from "./parse-sse";
 import { SearchEvent, SearchRequest } from "./search-types";
 
-/** Runs a search over SSE. Not EventSource: it is GET-only and reconnects, which would restart the search. */
+// Not EventSource: it is GET-only and reconnects, which would restart the search.
 @Injectable({ providedIn: "root" })
 export class SearchStreamClient {
 	private readonly baseUrl = inject(API_BASE_URL);
 	private readonly fetch = inject(FETCH);
 
-	/** Unsubscribing aborts the request, which cancels the search on the server. */
 	search(request: SearchRequest): Observable<SearchEvent> {
 		return new Observable((subscriber) => {
 			const abortController = new AbortController();
