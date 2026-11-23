@@ -11,7 +11,7 @@ Prerequisites: .NET 10 SDK, Node.js 22.22.3+ or 24.15+ (required by Angular 22).
 # terminal 1: API on http://localhost:5080 (SQLite DB is created on first run)
 cd server && dotnet run --project PriceHunt.Api
 
-# terminal 2: UI on http://localhost:4200 (installs packages on first run)
+# terminal 2: UI on http://localhost:4142 (installs packages on first run)
 cd client && npm start
 ```
 

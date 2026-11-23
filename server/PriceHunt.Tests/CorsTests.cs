@@ -8,14 +8,14 @@ public class CorsTests
         await using var factory = new PriceHuntApiFactory();
         using var client = factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Options, "/api/search");
-        request.Headers.Add("Origin", "http://localhost:4200");
+        request.Headers.Add("Origin", "http://localhost:4142");
         request.Headers.Add("Access-Control-Request-Method", "POST");
         request.Headers.Add("Access-Control-Request-Headers", "content-type");
 
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.True(response.IsSuccessStatusCode, $"Status {response.StatusCode}");
-        Assert.Equal("http://localhost:4200", Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+        Assert.Equal("http://localhost:4142", Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
         Assert.Contains("content-type", HeaderValues(response, "Access-Control-Allow-Headers"), StringComparer.OrdinalIgnoreCase);
         Assert.Contains("POST", HeaderValues(response, "Access-Control-Allow-Methods"));
     }
