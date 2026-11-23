@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PriceHunt.Api.Suppliers;
 
 namespace PriceHunt.Api.Search;
 
@@ -19,5 +20,9 @@ public record SearchRequest(
             yield return new ValidationResult("The search id must not be empty.", [nameof(SearchId)]);
         if (FromDate > ToDate)
             yield return new ValidationResult("The start date must not be after the end date.", [nameof(FromDate)]);
+
+        var unknown = (SupplierIds ?? []).Except(SupplierCatalog.All.Select(s => s.Id)).ToList();
+        if (unknown.Count > 0)
+            yield return new ValidationResult($"Unknown supplier ids: {string.Join(", ", unknown)}.", [nameof(SupplierIds)]);
     }
 }
