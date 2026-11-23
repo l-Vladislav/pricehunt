@@ -47,7 +47,7 @@
 
 	<ul>
 		@for (r of store.results(); track r.supplierId) {
-			<li class="result-row">
+			<li class="result-row" [appAnimateMove]="$index">
 				<span class="name">{{ supplierName(r.supplierId) }}</span>
 				<span class="price">{{ r.price | currency: "USD" }}</span>
 				<span class="response-time">{{ r.responseTimeMs }} ms</span>

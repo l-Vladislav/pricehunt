@@ -5,6 +5,7 @@ import {
 	provideHttpClientTesting,
 	TestRequest,
 } from "@angular/common/http/testing";
+import { ErrorHandler } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonHarness } from "@angular/material/button/testing";
 import { MatCheckboxHarness } from "@angular/material/checkbox/testing";
@@ -271,7 +272,7 @@ describe("SearchPage", () => {
 	describe("SC4: row animation", () => {
 		const rowHeight = 48;
 		const originalRect = Element.prototype.getBoundingClientRect;
-		let animated: { row: Element; keyframes: unknown; duration: unknown }[];
+		let animated: { row: Element; keyframes: unknown; options: unknown }[];
 		let listTop: number;
 		// How far a running animation currently shifts a row from its place in the list.
 		let shifts: Map<Element, number>;
@@ -292,8 +293,7 @@ describe("SearchPage", () => {
 				return new DOMRect(0, top, 800, rowHeight);
 			};
 			Element.prototype.animate = function (this: Element, keyframes, options) {
-				const duration = typeof options === "object" ? options.duration : options;
-				animated.push({ row: this, keyframes, duration });
+				animated.push({ row: this, keyframes, options });
 				return { cancel: () => shifts.delete(this) } as unknown as Animation;
 			};
 		});
@@ -302,6 +302,7 @@ describe("SearchPage", () => {
 			Element.prototype.getBoundingClientRect = originalRect;
 			// jsdom has no animate, so there is nothing to put back.
 			Reflect.deleteProperty(Element.prototype, "animate");
+			vi.unstubAllGlobals();
 		});
 
 		async function startSearch() {
@@ -331,7 +332,7 @@ describe("SearchPage", () => {
 			await push(quote(id, "s3", 20));
 
 			expect(moves()).toEqual([["Asked s2", slideFrom(-rowHeight)]]);
-			expect(animated[0].duration).toBeGreaterThan(0);
+			expect(animated[0].options).toEqual({ duration: 250, easing: "ease-out" });
 		});
 
 		it("SC4: each row slides by its own distance", async () => {
@@ -384,6 +385,35 @@ describe("SearchPage", () => {
 			await push(quote(id, "s3", 20));
 
 			expect(moves()).toEqual([["Asked s2", slideFrom(-rowHeight)]]);
+		});
+
+		it("SC4: rows move without animation under prefers-reduced-motion", async () => {
+			vi.stubGlobal("matchMedia", (query: string) => ({
+				matches: query === "(prefers-reduced-motion: reduce)",
+				addListener: () => undefined,
+				removeListener: () => undefined,
+			}));
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 30));
+
+			await push(quote(id, "s2", 20));
+
+			expect(rows().map(([name]) => name)).toEqual(["Asked s2", "Asked s1"]);
+			expect(moves()).toEqual([]);
+		});
+
+		it("SC4: rows move without animation when Element.animate is missing", async () => {
+			Reflect.deleteProperty(Element.prototype, "animate");
+			const errors: unknown[] = [];
+			// Angular reports an error thrown after a render only to the ErrorHandler.
+			TestBed.inject(ErrorHandler).handleError = (error) => errors.push(error);
+			const { id, push } = await startSearch();
+			await push(quote(id, "s1", 30));
+
+			await push(quote(id, "s2", 20));
+
+			expect(rows().map(([name]) => name)).toEqual(["Asked s2", "Asked s1"]);
+			expect(errors).toEqual([]);
 		});
 
 		it("SC4: a re-order that leaves a row at the same place on screen is not animated", async () => {
