@@ -176,6 +176,17 @@ public class SearchEndpointTests
     }
 
     [Fact]
+    public async Task SS1_SameFromAndToDate_IsAccepted()
+    {
+        await using var factory = new PriceHuntApiFactory();
+        using var client = factory.CreateClient();
+        var body = Body(Guid.NewGuid());
+        body["toDate"] = body["fromDate"];
+
+        await AbortAfterStartedAsync(factory, await StartSearchAsync(client, body, Ct));
+    }
+
+    [Fact]
     public async Task SS1_ReusedSearchId_Returns400ProblemDetails()
     {
         await using var factory = new PriceHuntApiFactory();
