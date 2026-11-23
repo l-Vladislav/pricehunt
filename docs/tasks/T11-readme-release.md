@@ -5,7 +5,9 @@
 1. How to run: two commands. Prerequisites: .NET 10 SDK, Node 22.22.3+ or 24.15+ (I8).
 2. Streaming: what and why (SS6). Summarise ADR-0001, including the rejected alternatives.
 3. Database and table structure, with an ER diagram (mermaid).
-4. Design decisions and trade-offs, including the interpretations table (I1–I8) from spec.md.
+4. Design decisions and trade-offs, including the interpretations table (I1–I8) from spec.md. Also state the known limits:
+   the history date filter uses whole UTC days; a search stays `Running` if the server dies mid-search;
+   two requests reusing one `searchId` at the same moment fail on the primary key instead of a 400.
 5. What I would do differently.
 6. Where AI was used: which tools (name and model) and where, built from `docs/ai-usage.md` (D4).
 

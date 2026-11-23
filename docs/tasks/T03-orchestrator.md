@@ -6,6 +6,32 @@
 It yields events as they happen and finishes with exactly one terminal outcome. It has no HTTP and no EF dependencies.
 Persistence plugs in through `ISearchRecorder` (fake here, real in T04).
 
+## Types (defined here, used unchanged by T04 and T05a)
+```csharp
+public record SearchRequest(Guid SearchId, string FromLocation, string ToLocation,
+    DateOnly FromDate, DateOnly ToDate, IReadOnlyList<string>? SupplierIds);   // T05b adds validation attributes
+
+public enum SearchStatus { Running, Completed, TimedOut, Cancelled }
+
+public abstract record SearchEvent(Guid SearchId);
+public record SearchStarted(Guid SearchId, IReadOnlyList<SupplierInfo> Suppliers) : SearchEvent(SearchId);
+public record QuoteReceived(Guid SearchId, string SupplierId, decimal Price, long ResponseTimeMs) : SearchEvent(SearchId);
+public record SupplierFailed(Guid SearchId, string SupplierId, long ResponseTimeMs) : SearchEvent(SearchId);
+public record SearchEnded(Guid SearchId, SearchStatus Status, int Responded, int Total) : SearchEvent(SearchId);
+
+public record SupplierResult(string SupplierId, decimal? Price, long ResponseTimeMs, DateTime ReceivedAtUtc); // Price null = failed
+
+public interface ISearchRecorder {
+    Task StartAsync(SearchRequest request, IReadOnlyList<string> supplierIds, DateTime createdAtUtc, CancellationToken ct);
+    Task RecordAsync(Guid searchId, SupplierResult result, CancellationToken ct);
+    Task FinishAsync(Guid searchId, SearchStatus status, CancellationToken ct);
+}
+```
+- `SupplierInfo(string Id, string Name)` comes from the catalog (T01).
+- Empty or null `SupplierIds` means all suppliers. The orchestrator resolves the list, so T05a passes the request through as is.
+- The orchestrator measures `ResponseTimeMs` with `TimeProvider.GetElapsedTime` and sets `ReceivedAtUtc` and `createdAtUtc` from `TimeProvider.GetUtcNow()`.
+- `StartAsync` runs before any supplier starts, so response rows always have their search row.
+
 ## Design (see plan.md, "Concurrency model")
 - Timeout CTS = `new CancellationTokenSource(TimeSpan.FromSeconds(6), timeProvider)`, linked with the caller `ct`. Keep track of **which** one fired.
   Don't call `CancelAfter` on the linked CTS: it uses the system clock, so `FakeTimeProvider` can't trigger it.
@@ -31,7 +57,7 @@ Persistence plugs in through `ISearchRecorder` (fake here, real in T04).
 - The final recorder call uses `CancellationToken.None`.
 
 ## Tests (component: FakeTimeProvider, fake suppliers backed by controllable TaskCompletionSource)
-These tests pin exact timing. Behaviour visible over HTTP is tested again in T05.
+These tests pin exact timing. Behaviour visible over HTTP is tested again in T05a.
 - SS2: events are yielded in completion order, before the remaining suppliers finish.
 - SS4: one supplier throws → the others still deliver, and a `SupplierFailed` event is emitted.
 - SS3, I1, I2: hanging supplier + 6 s elapsed → `Ended(TimedOut)` with the results collected so far, `responded` counts quotes and failures,

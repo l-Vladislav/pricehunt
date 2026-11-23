@@ -71,11 +71,12 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 
 | ID | Task | Reqs | Status |
 |----|------|------|--------|
-| [T01](tasks/T01-foundation.md) | Foundation: run commands, CORS, suppliers endpoint | D1, D3 | [ ] |
+| [T01](tasks/T01-foundation.md) | Foundation: CORS, supplier catalog and endpoint, test factory | S1, D1, D3 | [ ] |
 | [T02](tasks/T02-suppliers.md) | Simulated suppliers | S1–S4 | [ ] |
 | [T03](tasks/T03-orchestrator.md) | Search orchestrator (stream, timeout, isolation, cancellation) | SS1–SS5, I1–I3, I7 | [ ] |
 | [T04](tasks/T04-persistence.md) | EF Core model, auto-migrate, recording searches and responses | P1–P3, I3, I5, I7 | [ ] |
-| [T05](tasks/T05-search-endpoint.md) | SSE search endpoint + integration tests | S1, SS1–SS5, SC6, I1, I2, I6, I7 | [ ] |
+| [T05a](tasks/T05a-search-stream.md) | SSE search endpoint: streaming, timeout, cancellation | SS2–SS5, SC6, I1, I2, I7 | [ ] |
+| [T05b](tasks/T05b-search-validation.md) | SSE search endpoint: validation, trimming | SS1, I6 | [ ] |
 | [T06](tasks/T06-history-endpoint.md) | History endpoint: filters, sorting, paging | HS1, HS2, I4–I6 | [ ] |
 | [T07](tasks/T07-client-stream.md) | Client SSE-over-fetch stream client | SC2, SC6 | [ ] |
 | [T08](tasks/T08-search-page.md) | Search page: form, sorted results, progress, stale guard | SC1–SC3, SC5, SC6, I1 | [ ] |

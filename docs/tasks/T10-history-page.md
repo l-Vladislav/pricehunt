@@ -5,7 +5,7 @@
 A `/history` route with filters and a server-sorted, server-paged table.
 
 ## Design
-- Filters: start date, end date, supplier multi-select (HC1).
+- Filters: start date, end date, supplier multi-select (HC1). Suppliers come from `SuppliersApi` (T08).
 - Table columns: Date, Route ("A → B"), Supplier, Price, Response time (HC2). A failed row shows "Failed" in the Price cell (I5). Every header toggles the sort.
 - A paging control with the total count. Loading and empty states.
 - A link between the search and history pages.

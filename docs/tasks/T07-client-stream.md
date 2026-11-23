@@ -6,6 +6,8 @@
 It uses `fetch` with POST and parses the SSE `ReadableStream`. Unsubscribe → `AbortController.abort()`.
 
 ## Design
+- `API_BASE_URL` injection token set to `http://localhost:5080` (in `core/`, used by every API call from here on).
+- `fetch` comes from a `FETCH` injection token (default: `globalThis.fetch`). Tests provide a small hand-written fake, no mocking library.
 - A pure SSE parser `parseSse(buffer) → { events, rest }`. The caller keeps `rest` and prepends it to the next chunk.
   It handles events split across chunks, several events in one chunk, and `\r\n`.
 - The Observable errors on non-2xx (surfacing ProblemDetails) and completes when the stream ends.
