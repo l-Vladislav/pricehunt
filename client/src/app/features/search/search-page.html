@@ -1,0 +1,60 @@
+<main>
+	<h1>PriceHunt</h1>
+
+	<form [formGroup]="form" (ngSubmit)="search()">
+		<div class="fields">
+			<mat-form-field>
+				<mat-label>From location</mat-label>
+				<input matInput formControlName="fromLocation" />
+			</mat-form-field>
+			<mat-form-field>
+				<mat-label>To location</mat-label>
+				<input matInput formControlName="toLocation" />
+			</mat-form-field>
+			<mat-form-field>
+				<mat-label>From date</mat-label>
+				<input matInput [matDatepicker]="fromDatePicker" formControlName="fromDate" />
+				<mat-datepicker-toggle matIconSuffix [for]="fromDatePicker" />
+				<mat-datepicker #fromDatePicker />
+			</mat-form-field>
+			<mat-form-field>
+				<mat-label>To date</mat-label>
+				<input matInput [matDatepicker]="toDatePicker" formControlName="toDate" />
+				<mat-datepicker-toggle matIconSuffix [for]="toDatePicker" />
+				<mat-datepicker #toDatePicker />
+			</mat-form-field>
+		</div>
+
+		<fieldset formGroupName="suppliers">
+			<legend>Suppliers</legend>
+			@if (suppliersFailed()) {
+				<p class="error" role="alert">Server not reachable</p>
+			}
+			@for (supplier of suppliers(); track supplier.id) {
+				<mat-checkbox [formControlName]="supplier.id">{{ supplier.name }}</mat-checkbox>
+			}
+		</fieldset>
+
+		<button matButton="filled" type="submit" [disabled]="!canSearch()">Search</button>
+	</form>
+
+	@if (progress(); as progress) {
+		<p class="progress" role="status">{{ progress }}</p>
+	}
+	@if (store.errorMessage(); as errorMessage) {
+		<p class="error" role="alert">{{ errorMessage }}</p>
+	}
+
+	<ul>
+		@for (r of store.results(); track r.supplierId) {
+			<li class="result-row">
+				<span class="name">{{ supplierName(r.supplierId) }}</span>
+				<span class="price">{{ r.price | currency: "USD" }}</span>
+				<span class="response-time">{{ r.responseTimeMs }} ms</span>
+			</li>
+		}
+		@for (row of skeletonRows(); track $index) {
+			<li class="skeleton-row" aria-hidden="true"></li>
+		}
+	</ul>
+</main>
