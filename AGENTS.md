@@ -93,6 +93,8 @@ Integration tests are the default. Isolated tests are used only where an integra
   `responseTimeMs` advances exactly to that supplier's delay.
 - A test that starts a search waits for it to end (`ended`, or the recorder decorator's TCS) before the factory is disposed.
   Otherwise the orchestrator's `finally` writes to a disposed container.
+- Client component tests run with Material animations off and the native date adapter provided, both from `client/src/test-providers.ts`
+  (the `providersFile` option in `angular.json`). jsdom never fires `animationend`. Don't provide either of them again in a spec.
 - A flaky concurrency test is a bug. Fix the synchronisation, don't add retries or longer timeouts.
 - Every testable requirement ID in a task maps to at least one test that names it, e.g. `// SS3` or `it('SS3: ...')`.
   For ones that can't be automated (e.g. SC4 visual smoothness, D2 README), state in the PR how they were verified.
