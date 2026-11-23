@@ -5,7 +5,8 @@
 Add Angular Material with a theme, ready for T08b and T10b. No feature code.
 
 ## Design
-- `npx ng add @angular/material` (same major version as Angular) with a prebuilt theme.
+- `npx ng add @angular/material` (same major version as Angular) with the default azure palette. The schematic writes it as `mat.theme()` in `styles.scss`.
+  Edited by hand: no web fonts (Roboto falls back to Arial, and no component we use needs the icon font), `color-scheme` on `html`, no `height: 100%`.
   Review what the schematic changed and keep only what is needed.
 - The app stays zoneless. Recent Material versions don't need `@angular/animations`: if the schematic adds `provideAnimationsAsync()`
   or that package, remove them unless the build needs them.
@@ -27,4 +28,8 @@ Add Angular Material with a theme, ready for T08b and T10b. No feature code.
 - `toIsoDate` returns the local calendar day for `new Date(2026, 10, 23, 0, 30)` and `new Date(2026, 10, 23, 23, 30)`: both give
   `"2026-11-23"`. In any non-UTC time zone one of the two catches an implementation based on `toISOString()`. CI runs in
   `Asia/Jerusalem` since T04.
+- `toIsoDate` keeps the local year and month for `new Date(2026, 0, 1, 0, 30)` and `new Date(2026, 11, 31, 23, 30)`.
+- `toIsoDate` pads the year, the month and the day (a datepicker accepts a typed year like 202).
+
 `ng build` proves the theme compiles. The first runtime check of Material components is T08b's harness tests.
+No test covers the adapter in `app.config.ts`, because the test providers supply their own: check it by opening a datepicker under `npm start` (T08b does too).

@@ -32,3 +32,5 @@ The `SearchPage` component: the form, the live result list and the progress line
 - SC6: submit, push A's `started`, click the Search button again (it is enabled) → the fake stream client got a second call and A's Subject was unsubscribed.
 - The supplier list request fails (`HttpTestingController` error) → "Server not reachable" is shown.
 - SC5: while running, the number of skeleton rows is `total - responded`; after `ended` there are none.
+
+Manual check with `npm start`: both datepickers open (tests don't load `app.config.ts`, which provides the date adapter).
