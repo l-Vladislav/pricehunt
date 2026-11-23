@@ -1,5 +1,5 @@
 import { TestBed } from "@angular/core/testing";
-import { Subject } from "rxjs";
+import { Subject, defer } from "rxjs";
 import { SearchStore } from "./search-store";
 import { SearchStreamClient } from "./search-stream-client";
 import { FakeSearchStreamClient } from "./search-stream-client.fake";
@@ -30,6 +30,7 @@ function failed(searchId: string, supplierId: string): SearchEvent {
 	return { type: "supplier-failed", data: { searchId, supplierId, responseTimeMs: 900 } };
 }
 
+// Its counters differ from the events on purpose: the store counts responses itself.
 function ended(searchId: string, status: "completed" | "timedOut"): SearchEvent {
 	return { type: "ended", data: { searchId, status, responded: 3, total: 3 } };
 }
@@ -76,6 +77,16 @@ describe("SearchStore", () => {
 			total: 0,
 			status: "running",
 			errorMessage: null,
+		};
+	}
+
+	function afterOneQuote(searchId: string): object {
+		return {
+			...running(searchId),
+			suppliers,
+			results: [quote(searchId, "s1", 10).data],
+			responded: 1,
+			total: 3,
 		};
 	}
 
@@ -155,10 +166,11 @@ describe("SearchStore", () => {
 	it("SC6: the state is reset before the request is sent", () => {
 		const statesWhenSent: object[] = [];
 		const search = client.search.bind(client);
-		client.search = (request) => {
-			statesWhenSent.push(state());
-			return search(request);
-		};
+		client.search = (request) =>
+			defer(() => {
+				statesWhenSent.push(state());
+				return search(request);
+			});
 
 		const { id } = startSearch();
 
@@ -203,12 +215,11 @@ describe("SearchStore", () => {
 			expect(store.status()).toBe("running");
 
 			events.next(ended(id, status));
-			expect(store.status()).toBe(status);
+			const finalState = { ...afterOneQuote(id), status };
+			expect(state()).toEqual(finalState);
 			events.complete();
 
-			expect(store.status()).toBe(status);
-			expect(store.errorMessage()).toBeNull();
-			expect(resultIds()).toEqual(["s1"]);
+			expect(state()).toEqual(finalState);
 		},
 	);
 
@@ -217,12 +228,12 @@ describe("SearchStore", () => {
 		(status) => {
 			const { id, events } = startSearch();
 			events.next(started(id));
+			events.next(quote(id, "s1", 10));
 			events.next(ended(id, status));
 
 			events.error(new Error("Connection lost"));
 
-			expect(store.status()).toBe(status);
-			expect(store.errorMessage()).toBeNull();
+			expect(state()).toEqual({ ...afterOneQuote(id), status });
 		},
 	);
 
@@ -233,19 +244,27 @@ describe("SearchStore", () => {
 
 		events.error(new Error("Connection lost"));
 
-		expect(store.status()).toBe("error");
-		expect(store.errorMessage()).toBe("Connection lost");
-		expect(resultIds()).toEqual(["s1"]);
+		expect(state()).toEqual({
+			...afterOneQuote(id),
+			status: "error",
+			errorMessage: "Connection lost",
+		});
+		expect(client.calls).toHaveLength(1);
 	});
 
 	it("SC5: a stream that completes without ended sets the error state", () => {
 		const { id, events } = startSearch();
 		events.next(started(id));
+		events.next(quote(id, "s1", 10));
 
 		events.complete();
 
-		expect(store.status()).toBe("error");
-		expect(store.errorMessage()).toBe("Search ended unexpectedly");
+		expect(state()).toEqual({
+			...afterOneQuote(id),
+			status: "error",
+			errorMessage: "Search ended unexpectedly",
+		});
+		expect(client.calls).toHaveLength(1);
 	});
 
 	it("SC5: a search after a stream error clears the error, runs and updates the state", () => {

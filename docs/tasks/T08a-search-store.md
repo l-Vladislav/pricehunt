@@ -23,7 +23,8 @@ A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T0
   Put this reason in a one-line code comment next to the sort, so a reader doesn't "optimise" it later.
 - Failed suppliers count toward progress but are not added to `results`: the list shows prices, and a failure has none.
 - A small `SuppliersApi` in `core/` loads `/api/suppliers` with `HttpClient`. T08b and T10a use it.
-  Add `provideHttpClient(withFetch())` to `app.config.ts`.
+  Nothing to add to `app.config.ts`:
+  Angular 22 provides `HttpClient` in root, on `fetch` by default.
 
 ## Tests (Vitest, TestBed, fake stream client driven by a Subject)
 The fake stream client creates one Subject per call and keeps them all, so a test can check that A's was unsubscribed and can
