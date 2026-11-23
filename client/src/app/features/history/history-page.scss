@@ -13,3 +13,12 @@ main {
 .error {
 	color: var(--mat-sys-error);
 }
+
+table {
+	width: 100%;
+	table-layout: fixed;
+}
+
+tr[mat-row] {
+	height: var(--row-height);
+}

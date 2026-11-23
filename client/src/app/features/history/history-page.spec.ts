@@ -11,7 +11,9 @@ import {
 	MatDatepickerToggleHarness,
 } from "@angular/material/datepicker/testing";
 import { MatFormFieldHarness } from "@angular/material/form-field/testing";
+import { MatPaginatorHarness } from "@angular/material/paginator/testing";
 import { MatSelectHarness } from "@angular/material/select/testing";
+import { MatSortHarness } from "@angular/material/sort/testing";
 import { MatTableHarness } from "@angular/material/table/testing";
 import { provideRouter, Router } from "@angular/router";
 import { RouterTestingHarness } from "@angular/router/testing";
@@ -80,7 +82,16 @@ describe("HistoryPage", () => {
 	}
 
 	async function respond(request: TestRequest, ...items: HistoryItem[]): Promise<void> {
-		request.flush({ items, total: items.length, page: 1, pageSize: 20 });
+		await respondWithTotal(request, items.length, ...items);
+	}
+
+	async function respondWithTotal(
+		request: TestRequest,
+		total: number,
+		...items: HistoryItem[]
+	): Promise<void> {
+		const page = Number(request.request.params.get("page"));
+		request.flush({ items, total, page, pageSize: 20 });
 		await fixture.whenStable();
 	}
 
@@ -88,6 +99,47 @@ describe("HistoryPage", () => {
 		await createPage();
 		http.expectOne(suppliersUrl).flush(suppliers);
 		await respond(historyRequest(), ...items);
+	}
+
+	async function openPageOf45(): Promise<void> {
+		await createPage();
+		http.expectOne(suppliersUrl).flush(suppliers);
+		await respondWithTotal(historyRequest(), 45, item);
+	}
+
+	async function paginator(): Promise<MatPaginatorHarness> {
+		return loader.getHarness(MatPaginatorHarness);
+	}
+
+	async function rangeLabel(): Promise<string> {
+		return (await paginator()).getRangeLabel();
+	}
+
+	async function goToLastOf3Pages(): Promise<void> {
+		await (await paginator()).goToNextPage();
+		await respondWithTotal(historyRequest(), 45, item);
+		await (await paginator()).goToNextPage();
+		await respondWithTotal(historyRequest(), 45, item);
+		expect(await rangeLabel()).toBe("41 – 45 of 45");
+	}
+
+	async function clickHeader(label: string): Promise<void> {
+		const sort = await loader.getHarness(MatSortHarness);
+		const [header] = await sort.getSortHeaders({ label });
+		await header.click();
+	}
+
+	async function activeSort(): Promise<string[]> {
+		const header = await (await loader.getHarness(MatSortHarness)).getActiveHeader();
+		return header ? [await header.getLabel(), await header.getSortDirection()] : [];
+	}
+
+	function params({ request }: TestRequest, ...names: string[]): (string | null)[] {
+		return names.map((name) => request.params.get(name));
+	}
+
+	function emptyMessages(): HTMLElement[] {
+		return elements("p").filter((p) => p.textContent.includes("No searches found"));
 	}
 
 	async function formField(label: string): Promise<MatFormFieldHarness> {
@@ -421,6 +473,237 @@ describe("HistoryPage", () => {
 		await respond(historyRequest(), { ...item, id: 2, supplierName: "Supplier s2" });
 
 		expect((await rows()).map((cells) => cells[2])).toEqual(["Supplier s2"]);
+	});
+
+	it("HC2: the table opens sorted by date, newest first", async () => {
+		await openPage();
+
+		expect(await activeSort()).toEqual(["Date", "desc"]);
+	});
+
+	it.each([
+		["Date", "date"],
+		["Route", "route"],
+		["Supplier", "supplier"],
+		["Price", "price"],
+		["Response time", "responseTime"],
+	])("HC2: clicking %s sorts by it on the server, from page 1", async (label, sortBy) => {
+		await openPageOf45();
+
+		for (const direction of ["asc", "desc", "asc"]) {
+			await goToLastOf3Pages();
+
+			await clickHeader(label);
+
+			const request = historyRequest();
+			expect(params(request, "sortBy", "sortDir", "page")).toEqual([sortBy, direction, "1"]);
+			expect(await activeSort()).toEqual([label, direction]);
+			await respondWithTotal(request, 45, item);
+			expect(await rangeLabel()).toBe("1 – 20 of 45");
+		}
+	});
+
+	it("HC2: rows stay in the order of the response after a sort", async () => {
+		await openPage();
+		await clickHeader("Supplier");
+
+		await respond(
+			historyRequest(),
+			{ ...item, supplierName: "B" },
+			{ ...item, id: 2, supplierName: "A" },
+		);
+
+		expect((await rows()).map((cells) => cells[2])).toEqual(["B", "A"]);
+	});
+
+	it("HC2: next and previous load the page from the server, the total is shown", async () => {
+		await openPageOf45();
+		expect(await rangeLabel()).toBe("1 – 20 of 45");
+		expect(await (await paginator()).isPreviousPageDisabled()).toBe(true);
+
+		await (await paginator()).goToNextPage();
+		const second = historyRequest();
+		expect(params(second, "page", "pageSize")).toEqual(["2", "20"]);
+		await respondWithTotal(second, 45, { ...item, id: 2, supplierName: "Second page" });
+		expect((await rows()).map((cells) => cells[2])).toEqual(["Second page"]);
+		expect(await rangeLabel()).toBe("21 – 40 of 45");
+
+		await (await paginator()).goToNextPage();
+		const third = historyRequest();
+		expect(params(third, "page")).toEqual(["3"]);
+		await respondWithTotal(third, 45, item);
+		expect(await (await paginator()).isNextPageDisabled()).toBe(true);
+
+		await (await paginator()).goToPreviousPage();
+		const back = historyRequest();
+		expect(params(back, "page")).toEqual(["2"]);
+		await respondWithTotal(back, 45, item);
+
+		await (await paginator()).goToPreviousPage();
+		expect(params(historyRequest(), "page")).toEqual(["1"]);
+	});
+
+	it.each([
+		["a supplier", () => toggleSupplier("Supplier s1")],
+		["a date", () => typeDate("Start date", "11/23/2026")],
+	])("HC2: changing %s on page 3 requests page 1", async (_, change) => {
+		await openPageOf45();
+		await goToLastOf3Pages();
+
+		await change();
+
+		const request = historyRequest();
+		expect(params(request, "page")).toEqual(["1"]);
+		await respondWithTotal(request, 21, item);
+		expect(await rangeLabel()).toBe("1 – 20 of 21");
+	});
+
+	it("HC2: the page size is fixed", async () => {
+		await openPage();
+		await paginator();
+
+		expect(elements(".mat-mdc-paginator-page-size")).toEqual([]);
+	});
+
+	it("HC2: a filter change keeps the sort, a page change keeps the sort and the filters", async () => {
+		await openPageOf45();
+		await clickHeader("Price");
+		await respondWithTotal(historyRequest(), 45, item);
+
+		await toggleSupplier("Supplier s1");
+		const filtered = historyRequest();
+		expect(params(filtered, "sortBy", "sortDir")).toEqual(["price", "asc"]);
+		await respondWithTotal(filtered, 45, item);
+
+		await (await paginator()).goToNextPage();
+		expect(params(historyRequest(), "sortBy", "sortDir", "supplierIds", "page")).toEqual([
+			"price",
+			"asc",
+			"s1",
+			"2",
+		]);
+	});
+
+	it.each([
+		["can't be parsed", "abc"],
+		["are in the wrong order", "11/24/2026"],
+	])("HC2: while the dates %s, sorting and paging use the last valid filters", async (_, text) => {
+		const names = ["startDate", "endDate", "supplierIds"];
+		const lastValid = [null, new Date(2026, 10, 24).toISOString(), null];
+		await openPageOf45();
+		await typeDate("End date", "11/23/2026");
+		await respondWithTotal(historyRequest(), 45, item);
+		await typeDate("Start date", text);
+		await toggleSupplier("Supplier s1");
+		expect(historyRequests()).toHaveLength(0);
+
+		await clickHeader("Price");
+		const sorted = historyRequest();
+		expect(params(sorted, ...names, "sortBy")).toEqual([...lastValid, "price"]);
+		await respondWithTotal(sorted, 45, item);
+
+		await (await paginator()).goToNextPage();
+		expect(params(historyRequest(), ...names, "page")).toEqual([...lastValid, "2"]);
+	});
+
+	it.each([
+		["a sort", () => clickHeader("Price")],
+		["a page change", async () => (await paginator()).goToNextPage()],
+	])("HC2: %s cancels the request before it", async (_, change) => {
+		await openPageOf45();
+		await toggleSupplier("Supplier s1");
+		const first = historyRequest();
+
+		await change();
+
+		expect(first.cancelled).toBe(true);
+		expect(historyRequest().cancelled).toBe(false);
+	});
+
+	it("HC2: skeleton rows stand in for the rows until the first response", async () => {
+		await createPage();
+
+		expect(elements(".skeleton-row")).toHaveLength(20);
+		expect(emptyMessages()).toEqual([]);
+
+		await respond(historyRequest(), item);
+		expect(elements(".skeleton-row")).toEqual([]);
+		expect(await rows()).toHaveLength(1);
+		expect(emptyMessages()).toEqual([]);
+	});
+
+	it.each([
+		["a sort", () => clickHeader("Price")],
+		["a page change", async () => (await paginator()).goToNextPage()],
+		["a filter change", () => toggleSupplier("Supplier s1")],
+	])("HC2: skeleton rows replace the rows after %s", async (_, change) => {
+		await openPageOf45();
+
+		await change();
+		expect(elements(".skeleton-row")).toHaveLength(20);
+		expect(await rows()).toEqual([]);
+		expect(await rangeLabel()).toContain("of 45");
+
+		await respondWithTotal(historyRequest(), 45, item);
+		expect(elements(".skeleton-row")).toEqual([]);
+		expect(await rows()).toHaveLength(1);
+	});
+
+	it.each(failures)(
+		"HC2: after %s the message replaces the skeleton, another page can be tried",
+		async (_, fail) => {
+			await openPageOf45();
+			await (await paginator()).goToNextPage();
+
+			fail(historyRequest());
+			await fixture.whenStable();
+
+			expect(errors()).toEqual(["History is unavailable, please try again later"]);
+			expect(elements("td, .skeleton-row")).toEqual([]);
+			expect(emptyMessages()).toEqual([]);
+			expect(await rangeLabel()).toBe("21 – 40 of 45");
+
+			await (await paginator()).goToNextPage();
+			const request = historyRequest();
+			expect(params(request, "page")).toEqual(["3"]);
+			expect(errors()).toEqual([]);
+			expect(elements(".skeleton-row")).toHaveLength(20);
+			await respondWithTotal(request, 45, item);
+			expect(await rows()).toHaveLength(1);
+		},
+	);
+
+	it.each([
+		[5, "1", "1 – 5 of 5"],
+		[20, "1", "1 – 20 of 20"],
+		[21, "2", "21 – 21 of 21"],
+	])("HC2: a page past the last of %i rows loads the last one", async (total, lastPage, range) => {
+		await openPageOf45();
+		await goToLastOf3Pages();
+		await (await paginator()).goToPreviousPage();
+		await respondWithTotal(historyRequest(), 45, item);
+		await (await paginator()).goToNextPage();
+
+		await respondWithTotal(historyRequest(), total);
+
+		const request = historyRequest();
+		expect(params(request, "page")).toEqual([lastPage]);
+		expect(elements(".skeleton-row")).toHaveLength(20);
+		expect(emptyMessages()).toEqual([]);
+		await respondWithTotal(request, total, item);
+		expect(await rangeLabel()).toBe(range);
+		expect(await rows()).toHaveLength(1);
+	});
+
+	it("HC2: an empty page shows a message", async () => {
+		await openPage();
+
+		expect(emptyMessages()).toHaveLength(1);
+		expect(elements("td, .skeleton-row")).toEqual([]);
+		expect(await rangeLabel()).toBe("0 of 0");
+
+		await toggleSupplier("Supplier s1");
+		expect(emptyMessages()).toEqual([]);
 	});
 
 	it("I5: a failed row shows Failed as its price", async () => {
