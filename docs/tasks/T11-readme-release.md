@@ -2,7 +2,7 @@
 **Reqs:** SS6, D1, D2, D4
 
 ## README sections (required by the assignment)
-1. How to run: two commands. Prerequisites: .NET 10 SDK, Node 22.22+ or 24.15+ (I8).
+1. How to run: two commands. Prerequisites: .NET 10 SDK, Node 22.22.3+ or 24.15+ (I8).
 2. Streaming: what and why (SS6). Summarise ADR-0001, including the rejected alternatives.
 3. Database and table structure, with an ER diagram (mermaid).
 4. Design decisions and trade-offs, including the interpretations table (I1–I8) from spec.md.

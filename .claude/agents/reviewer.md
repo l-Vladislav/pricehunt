@@ -16,7 +16,7 @@ You review a diff you did not write. Assume nothing about the author's intent be
    - **Rule violations:** anything forbidden in `AGENTS.md`.
    - **Scope:** changes outside the task, new dependencies, dead code, speculative abstractions.
    - **Test quality:** tests that pass trivially, use real time, assert on mocks only, or were weakened.
-4. Don't modify files. You may run `dotnet test` / `npm test` to confirm a suspicion.
+4. Don't modify files. You may run `dotnet test --solution server/PriceHunt.sln` / `npx ng test --watch=false` to confirm a suspicion.
 
 Output: a list of findings, most severe first. Each finding has `severity (blocker/major/minor) · file:line · problem · concrete failing scenario · suggested fix`.
 End with "No blockers" or "Blockers: N". Report only findings you can justify with a scenario. No style nits.

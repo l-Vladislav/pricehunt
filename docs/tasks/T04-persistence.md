@@ -10,7 +10,9 @@ EF Core + SQLite. The schema is created on startup via `Database.Migrate()` (mig
 - Price is stored as `long PriceMinor` (USD cents). Times are stored as UTC `DateTime` (see the spec.md §3 notes for why).
 - Enums are stored as strings, so the DB stays readable.
 - The recorder uses its own `DbContext` via `IDbContextFactory<AppDbContext>`. The context is never shared across threads.
-- Write the search row at start (`Status = Running`). Insert responses as they arrive. Finalize with `CancellationToken.None`.
+- Write the search row at start (`Status = Running`). Insert responses as they arrive, before they are streamed. Response inserts and
+  the final status use `CancellationToken.None` (see plan.md, "Concurrency model").
+- The connection string is built from `ContentRootPath`, so `pricehunt.db` lands in the API folder whatever the working directory is.
 
 ## Acceptance criteria
 - Delete `pricehunt.db` → `dotnet run` recreates it.

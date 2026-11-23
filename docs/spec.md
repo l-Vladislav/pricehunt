@@ -54,11 +54,11 @@ Where the PDF is ambiguous, these are my decisions. The README repeats them.
 | I1 | What does "responded" mean in "N of M responded"? | Success **or** failure counts as responded. A supplier still pending at the deadline does not. | The user wants to know how many suppliers are done. |
 | I2 | With all 7 selected, the never-responding supplier makes every search end as `TimedOut`. Is that a bug? | Expected. `Completed` is only possible when that supplier is deselected. | Follows from S4 + SS3. |
 | I3 | What is recorded for suppliers that had not answered when the search ended? | Nothing. Only real responses (success or failure) are stored. Which suppliers were asked is stored with the search (P1). | P2 asks for every *response*. No answer means no response. |
-| I4 | Which date do the history "start date / end date" filters apply to? | The **search timestamp** (when the price was obtained). | The PDF's "return later and filter the history" is about when prices were seen. |
+| I4 | Which date do the history "start date / end date" filters apply to? | The **search timestamp** (when the search ran). | The PDF's "return later and filter the history" is about when prices were seen. |
 | I5 | Do failed responses appear in the history table? | Yes, in the same five columns (HC2). The Price cell shows "Failed". Sorting by price always puts failures last. | P2 records failures. Showing them needs no extra column. |
 | I6 | Location format | Free text, trimmed, case-insensitive match in history. | The PDF has no list of locations. |
 | I7 | Search status when the client disconnects | `Cancelled`, saved with a token that is not the request token. | The request token is already cancelled at that point. |
-| I8 | One command per project with "no special setup or installation" (D1) vs. the .NET 10 / Angular 22 choice | Prerequisites are the .NET 10 SDK and Node.js 22.22+/24.15+. The run commands install npm packages and create the DB. | The PDF allows .NET 8+ / Angular 17+. The README lists the prerequisites first. |
+| I8 | One command per project with "no special setup or installation" (D1) vs. the .NET 10 / Angular 22 choice | Prerequisites are the .NET 10 SDK and Node.js 22.22.3+/24.15+. The run commands install npm packages and create the DB. | The PDF allows .NET 8+ / Angular 17+. The README lists the prerequisites first. |
 
 ## 3. Technical choices
 - Target: .NET 10 (LTS) via `global.json` in the repo root. Angular 22 (standalone, signals, zoneless).

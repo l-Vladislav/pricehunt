@@ -80,6 +80,7 @@ Integration tests are the default. Isolated tests are used only where an integra
 - No mocking libraries. Fakes are small hand-written classes. Never mock `DbContext` or EF: use real SQLite.
 - Time moves only through `FakeTimeProvider.Advance`. No real sleeps, no `Task.Delay` in tests, no polling with timeouts as a sync mechanism.
   Integration tests advance time only after reading the `started` event (the server starts every supplier's delay before sending it).
+  Never advance past a supplier delay and the 6 s deadline in one `Advance` call: which one wins is then up to the scheduler.
 - A flaky concurrency test is a bug. Fix the synchronisation, don't add retries or longer timeouts.
 - Every testable requirement ID in a task maps to at least one test that names it, e.g. `// SS3` or `it('SS3: ...')`.
   For ones that can't be automated (e.g. SC4 visual smoothness, D2 README), state in the PR how they were verified.
@@ -94,7 +95,7 @@ Pre-approved, add them when a task needs them:
 Anything else needs the owner's approval.
 
 ## Done means
-- `dotnet build -warnaserror` and `dotnet test` are green. If the client changed: `npx ng test --watch=false`, `npx ng build`, `npx ng lint` and `npx prettier --check .` are green.
+- `dotnet build server/PriceHunt.sln -warnaserror` and `dotnet test --solution server/PriceHunt.sln` are green. If the client changed: `npx ng test --watch=false`, `npx ng build`, `npx ng lint` and `npx prettier --check .` are green.
 - The task's acceptance criteria are met, and `docs/plan.md` + `docs/ai-usage.md` are updated.
 - A PR is open with the template filled in and CI green. The real command output is quoted, not paraphrased.
 

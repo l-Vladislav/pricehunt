@@ -12,11 +12,15 @@ public interface ISupplier {
     Task<SupplierQuote> GetQuoteAsync(SearchCriteria criteria, CancellationToken ct);
 }
 ```
+- `IRandomSource` has one method, `double NextDouble()`. Production wraps `Random.Shared`. Tests use a fake that returns a fixed sequence.
 - `SimulatedSupplier(id, name, SupplierBehavior, TimeProvider, IRandomSource)`.
-- `Normal`: `Task.Delay(0.5–5 s, timeProvider, ct)`, then a random price.
+  It draws everything before the first `await`, in this order: delay, failure roll (flaky only), price. The price is drawn even if the
+  roll says fail, so every supplier uses a fixed number of values. The hanging supplier draws nothing.
+  Supplier calls start in catalog order, so the fake's sequence maps to suppliers in a known order.
+- `Normal`: `Task.Delay(0.5–5 s, timeProvider, ct)`, then a random price of 50.00–500.00 USD.
 - `Flaky`: same delay, then throws `SupplierUnavailableException` with probability 0.3.
 - `Hanging`: `Task.Delay(Timeout.InfiniteTimeSpan, timeProvider, ct)`. Must end **only** through `ct`.
-- Catalog: 5 Normal, 1 Flaky, 1 Hanging. Registered in DI as `IEnumerable<ISupplier>`.
+- Catalog (from T01) gets a behaviour per supplier: 5 Normal, 1 Flaky, 1 Hanging. Registered in DI as `IEnumerable<ISupplier>`.
 
 ## Acceptance criteria
 - No `Thread.Sleep`. No `Task.Delay` without the `TimeProvider` and `ct` overload.

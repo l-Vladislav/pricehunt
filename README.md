@@ -5,7 +5,7 @@ Every search is saved, and past prices can be filtered on the history screen.
 
 ## How to run
 
-Prerequisites: .NET 10 SDK, Node.js 22.22+ or 24.15+ (required by Angular 22).
+Prerequisites: .NET 10 SDK, Node.js 22.22.3+ or 24.15+ (required by Angular 22).
 
 ```bash
 # terminal 1: API on http://localhost:5080 (SQLite DB is created on first run)
@@ -15,7 +15,7 @@ cd server && dotnet run --project PriceHunt.Api
 cd client && npm start
 ```
 
-Tests: `dotnet test --solution server/PriceHunt.sln` · `cd client && npm test -- --watch=false`
+Tests: `dotnet test --solution server/PriceHunt.sln` · `cd client && npx ng test --watch=false`
 
 ## Streaming: how and why
 _TODO (T11): summary of [ADR-0001](docs/adr/0001-streaming-transport.md)._

@@ -5,9 +5,13 @@
 `GET /api/history`: server-side filtering, sorting and paging over supplier responses joined with their searches.
 
 ## Design
-- Filters: `startDate`/`endDate` on the search timestamp (inclusive, whole UTC day), `supplierIds` (0..n, empty = all), optional `fromLocation`/`toLocation` (case-insensitive equality).
-- `sortBy` whitelist: `date|route|supplier|price|responseTime`. Anything else → 400. Failed rows (null price) sort last for both directions of `price`. Add a stable secondary sort by `Id`.
+- All filters are optional:
+  - `startDate`/`endDate`: the search timestamp, inclusive whole UTC days (I4);
+  - `supplierIds`: 0..n, empty = all;
+  - `fromLocation`/`toLocation`: case-insensitive equality (I6). SQLite `lower()` folds ASCII only, which is fine here.
+- `sortBy` whitelist: `date|route|supplier|price|responseTime`, `sortDir`: `asc|desc`. Default: `date desc`, newest first. `date` is the search timestamp (I4), `route` is from then to location, `supplier` is the supplier name. Failed rows (null price) sort last for both directions of `price`. Add a stable secondary sort by `Id`.
 - `page` starts at 1. `pageSize` is 1..100, default 20.
+- Validation uses the same built-in Minimal API validation as T05 (`[AsParameters]` with `[AllowedValues]` and `[Range]`). Invalid input → 400.
 - Project to a DTO inside the query (`Select`). No entity is returned.
 
 ## Tests (integration: `PriceHuntApiFactory` from T05, `GET /api/history` over HTTP)
