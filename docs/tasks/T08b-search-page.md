@@ -20,7 +20,8 @@ The `SearchPage` component: the form, the live result list and the progress line
   `pending` (T08a) rows below the results. They go away when the search ends. This is the loading state, not a new feature.
   The `.skeleton-row` class is global CSS (fixed row height, shimmer, no animation under `prefers-reduced-motion`); T10b reuses it.
 - Progress text: "N of M suppliers responded" while running. The timer, the final state and the bar are in T12c.
-  Before `started` arrives there is no progress line. An error shows `errorMessage`.
+  It is shown from the click on Search, like the skeleton rows, so a new search doesn't collapse the page (SC4).
+  A rejected search shows them until its error arrives. An error shows `errorMessage`.
 
 ## Tests (Vitest, TestBed, `SearchStore` with the fake stream client from T08a)
 - SC1: the form shows from/to location, from/to date and every supplier selected. Deselecting all of them disables Search.
@@ -28,7 +29,9 @@ The `SearchPage` component: the form, the live result list and the progress line
 - SC1: submitting starts a search with the form values; a date picked as 23 Nov is sent as `"fromDate":"2026-11-23"`.
 - SC2: rows appear as events arrive, in price order.
 - SC4: after a re-order, each supplier's row is the same DOM node as before (`track` reuses nodes; T09 relies on it).
-- SC5: no progress line before `started`; then "1 of 7 suppliers responded" after a quote and a failure (I1); after `ended` "5 of 7 suppliers responded" and "Timed out"
+- SC4: a new search keeps the progress, the bar and the length of the list before its first event, with the same DOM nodes.
+- SC5: no progress line before the first search; "0 of 7 suppliers responded" after the click, before `started`;
+  then "1 of 7 suppliers responded" after a quote and a failure (I1); after `ended` "5 of 7 suppliers responded" and "Timed out"
   ("6 of 7 suppliers responded" and "Completed" in a second case).
 - SC6: submit, push A's `started`, click the Search button again (it is enabled) → the fake stream client got a second call and A's Subject was unsubscribed.
 - The supplier list request fails (`HttpTestingController` error) → "Server not reachable" is shown.
