@@ -61,7 +61,7 @@ npx prettier --write .                            # formatting: double quotes, t
 - Forbidden: `async void`, `.Result`, `.Wait()`, `Thread.Sleep`, fire-and-forget `Task.Run`, swallowing `OperationCanceledException` that came from the caller's token.
 - `DbContext` is never used from more than one thread. Supplier calls run concurrently, one loop consumes their results (`Task.WhenEach`). Supplier tasks never touch the DB: a search's writes run one after another in the orchestrator's own flow.
 - Every recorder write, `StartAsync` included, uses `CancellationToken.None` (plan.md, "Concurrency model").
-- SQLite/EF: store money as `long` minor units and time as UTC `DateTime` (SQLite can't ORDER BY `decimal` or `DateTimeOffset`). Never return entities from endpoints, return DTOs.
+- SQLite/EF: store money as `long` minor units and time as UTC `DateTime` (EF Core's SQLite provider can't ORDER BY `DateTimeOffset`). Never return entities from endpoints, return DTOs.
 - Schema changes go through EF migrations: `dotnet ef migrations add <Name> --project server/PriceHunt.Api`.
 - Nullable enabled, warnings are bugs. Records for DTOs and events.
 
