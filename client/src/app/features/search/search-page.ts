@@ -1,20 +1,12 @@
 import { CurrencyPipe } from "@angular/common";
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
-import {
-	AbstractControl,
-	FormControl,
-	FormGroup,
-	FormRecord,
-	ReactiveFormsModule,
-	ValidationErrors,
-	Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
-import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
+import { MatSelectModule } from "@angular/material/select";
 import { RouterLink } from "@angular/router";
 import { Supplier, SuppliersApi } from "../../core/suppliers-api";
 import { toIsoDate } from "../../core/to-iso-date";
@@ -27,10 +19,10 @@ import { SearchStore } from "./search-store";
 		AnimateMove,
 		CurrencyPipe,
 		MatButtonModule,
-		MatCheckboxModule,
 		MatDatepickerModule,
 		MatFormFieldModule,
 		MatInputModule,
+		MatSelectModule,
 		ReactiveFormsModule,
 		RouterLink,
 	],
@@ -50,8 +42,11 @@ export class SearchPage {
 		toLocation: new FormControl("", { nonNullable: true, validators: Validators.required }),
 		fromDate: new FormControl<Date | null>(null, Validators.required),
 		toDate: new FormControl<Date | null>(null, Validators.required),
-		// The API treats an empty list as "all", so at least one supplier must stay checked.
-		suppliers: new FormRecord<FormControl<boolean>>({}, atLeastOneChecked),
+		// The API treats an empty list as "all", so at least one supplier must stay selected.
+		supplierIds: new FormControl<string[]>([], {
+			nonNullable: true,
+			validators: Validators.required,
+		}),
 	});
 	private readonly formStatus = toSignal(this.form.statusChanges, {
 		initialValue: this.form.status,
@@ -98,7 +93,7 @@ export class SearchPage {
 	}
 
 	protected search(): void {
-		const { fromLocation, toLocation, fromDate, toDate, suppliers } = this.form.getRawValue();
+		const { fromLocation, toLocation, fromDate, toDate, supplierIds } = this.form.getRawValue();
 		if (!fromDate || !toDate) {
 			return;
 		}
@@ -107,18 +102,12 @@ export class SearchPage {
 			toLocation,
 			fromDate: toIsoDate(fromDate),
 			toDate: toIsoDate(toDate),
-			supplierIds: Object.keys(suppliers).filter((id) => suppliers[id]),
+			supplierIds,
 		});
 	}
 
 	private showSuppliers(suppliers: Supplier[]): void {
-		for (const { id } of suppliers) {
-			this.form.controls.suppliers.addControl(id, new FormControl(true, { nonNullable: true }));
-		}
 		this.suppliers.set(suppliers);
+		this.form.controls.supplierIds.setValue(suppliers.map(({ id }) => id));
 	}
-}
-
-function atLeastOneChecked(control: AbstractControl): ValidationErrors | null {
-	return Object.values(control.value).includes(true) ? null : { required: true };
 }

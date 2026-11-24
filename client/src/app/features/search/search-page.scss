@@ -10,14 +10,8 @@ main {
 	gap: 0 16px;
 }
 
-fieldset {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0 16px;
-	margin: 0 0 16px;
-	padding: 8px 16px;
-	border: 1px solid var(--mat-sys-outline-variant);
-	border-radius: var(--mat-sys-corner-small);
+.suppliers {
+	grid-column: 1 / -1;
 }
 
 .error {
