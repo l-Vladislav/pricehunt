@@ -1,27 +1,33 @@
-import { CurrencyPipe } from "@angular/common";
+import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
-import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
+import { takeUntilDestroyed, toObservable, toSignal } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
+import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatSelectModule } from "@angular/material/select";
 import { RouterLink } from "@angular/router";
+import { interval, map, of, startWith, switchMap } from "rxjs";
 import { Supplier, SuppliersApi } from "../../core/suppliers-api";
 import { toIsoDate } from "../../core/to-iso-date";
 import { AnimateMove } from "./animate-move";
 import { SearchStore } from "./search-store";
+
+const tickMs = 100;
 
 @Component({
 	selector: "app-search-page",
 	imports: [
 		AnimateMove,
 		CurrencyPipe,
+		DecimalPipe,
 		MatButtonModule,
 		MatDatepickerModule,
 		MatFormFieldModule,
 		MatInputModule,
+		MatProgressBarModule,
 		MatSelectModule,
 		ReactiveFormsModule,
 		RouterLink,
@@ -62,21 +68,34 @@ export class SearchPage {
 		return this.store.status() === "running" ? Array.from({ length }) : [];
 	});
 
-	protected readonly progress = computed(() => {
-		const total = this.store.total();
-		const text = `${this.store.responded()} of ${total} suppliers responded`;
+	// The total is known once "started" arrives.
+	protected readonly showProgress = computed(
+		() => this.store.total() > 0 && this.store.status() !== "error",
+	);
+	protected readonly progressPercent = computed(
+		() => (this.store.responded() / this.store.total()) * 100,
+	);
+	protected readonly finalState = computed(() => {
 		switch (this.store.status()) {
-			case "running":
-				// The total is known once "started" arrives.
-				return total > 0 ? text : null;
 			case "completed":
-				return `Completed: ${text}`;
+				return "Completed";
 			case "timedOut":
-				return `Timed out: ${text}`;
+				return "Timed out";
 			default:
 				return null;
 		}
 	});
+
+	// The id, not the status: a search that replaces a running one must restart the timer.
+	private readonly runningSearchId = computed(() =>
+		this.store.status() === "running" ? this.store.searchId() : null,
+	);
+	protected readonly elapsedSeconds = toSignal(
+		toObservable(this.runningSearchId).pipe(
+			switchMap((searchId) => (searchId === null ? of(0) : secondsFromNow())),
+		),
+		{ initialValue: 0 },
+	);
 
 	constructor() {
 		inject(SuppliersApi)
@@ -110,4 +129,13 @@ export class SearchPage {
 		this.suppliers.set(suppliers);
 		this.form.controls.supplierIds.setValue(suppliers.map(({ id }) => id));
 	}
+}
+
+// Reads the clock instead of counting ticks: a background tab delays them.
+function secondsFromNow() {
+	const startedAt = performance.now();
+	return interval(tickMs).pipe(
+		map(() => (performance.now() - startedAt) / 1000),
+		startWith(0),
+	);
 }

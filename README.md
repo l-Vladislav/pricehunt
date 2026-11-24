@@ -25,7 +25,7 @@ Tests: `dotnet test --solution server/PriceHunt.sln` in the repo root, `npm test
 
 | If you have | Look at |
 |-------------|---------|
-| 5 minutes | Run it and search with all suppliers: it ends "Timed out: 6 of 7 suppliers responded" because one supplier never answers (5 of 7 when the one that fails 30% of the time fails). Deselect Lantern Express and it ends "Completed". Start a second search while one runs. |
+| 5 minutes | Run it and search with all suppliers: it ends "Timed out" with "6 of 7 suppliers responded" because one supplier never answers (5 of 7 when the one that fails 30% of the time fails). Deselect Lantern Express and it ends "Completed". Start a second search while one runs. |
 | 15 minutes | [`SearchOrchestrator.cs`](server/PriceHunt.Api/Search/SearchOrchestrator.cs): the 6 s limit, cancellation and failure isolation in one file. Its tests pin the races at the deadline listed in [T03b](docs/tasks/T03b-orchestrator-cancellation.md). |
 | 30 minutes | One requirement from spec to test, see "One requirement, end to end" below. |
 
@@ -159,7 +159,7 @@ as plain integers. Times are UTC `DateTime`, because EF Core's SQLite provider c
 
 | # | Question | Decision |
 |---|----------|----------|
-| I1 | What counts as "responded"? | Only a price. A failure doesn't count, so a search can end "Completed: 5 of 6". If every supplier fails, the list stays empty. |
+| I1 | What counts as "responded"? | Only a price. A failure doesn't count, so a search can end "Completed" with 5 of 6. If every supplier fails, the list stays empty. |
 | I2 | Every search with all seven suppliers ends "Timed out". Is that a bug? | No. One supplier never responds, so `Completed` is possible only without it. A failing supplier causes no timeout: without the silent one the search still ends `Completed`, with fewer prices (I1). |
 | I3 | What is stored for a supplier that did not answer in time? | No response row, only that it was asked. An answer still queued at the deadline behind the save of an earlier one is dropped too: not stored, not streamed, not counted. |
 | I4 | Which date does the history filter use? | When the search ran, in the user's local days. |
@@ -192,7 +192,7 @@ A server database would not need this, and it works only inside one process.
 
 ## Tests
 
-112 on the server (about 5 s) and 135 on the client (about 6 s). The test code is more than twice the size of the product code.
+112 on the server (about 5 s) and 142 on the client (about 6 s). The test code is more than twice the size of the product code.
 That is on purpose. The agent wrote both the code and the tests, so a green run alone proves little. The tests follow the IDs
 in the spec, and the code was broken on purpose to see them fail.
 

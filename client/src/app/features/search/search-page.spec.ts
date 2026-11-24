@@ -14,6 +14,7 @@ import {
 } from "@angular/material/datepicker/testing";
 import { MatFormFieldHarness } from "@angular/material/form-field/testing";
 import { MatInputHarness } from "@angular/material/input/testing";
+import { MatProgressBarHarness } from "@angular/material/progress-bar/testing";
 import { MatSelectHarness } from "@angular/material/select/testing";
 import { provideRouter } from "@angular/router";
 import { RouterTestingHarness } from "@angular/router/testing";
@@ -35,8 +36,8 @@ function started(searchId: string): SearchEvent {
 	return { type: "started", data: { searchId, suppliers: askedSuppliers } };
 }
 
-function quote(id: string, supplierId: string, price: number, responseTimeMs = 800): SearchEvent {
-	return { type: "quote", data: { searchId: id, supplierId, price, responseTimeMs } };
+function quote(searchId: string, supplierId: string, price: number): SearchEvent {
+	return { type: "quote", data: { searchId, supplierId, price, responseTimeMs: 800 } };
 }
 
 function failed(searchId: string, supplierId: string): SearchEvent {
@@ -150,6 +151,16 @@ describe("SearchPage", () => {
 	function rows(): string[][] {
 		return elements(".result-row").map((row) =>
 			[...row.children].map((cell) => cell.textContent.trim()),
+		);
+	}
+
+	async function progressBars(): Promise<[string | null, number | null][]> {
+		const bars = await loader.getAllHarnesses(MatProgressBarHarness);
+		return Promise.all(
+			bars.map(async (bar): Promise<[string | null, number | null]> => [
+				await bar.getMode(),
+				await bar.getValue(),
+			]),
 		);
 	}
 
@@ -267,13 +278,13 @@ describe("SearchPage", () => {
 		await push(started(id));
 		expect(rows()).toEqual([]);
 
-		await push(quote(id, "s1", 1250, 800));
-		expect(rows()).toEqual([["Asked s1", "$1,250.00", "800 ms"]]);
+		await push(quote(id, "s1", 1250));
+		expect(rows()).toEqual([["Asked s1", "$1,250.00"]]);
 
-		await push(quote(id, "s2", 99.5, 1234));
+		await push(quote(id, "s2", 99.5));
 		expect(rows()).toEqual([
-			["Asked s2", "$99.50", "1234 ms"],
-			["Asked s1", "$1,250.00", "800 ms"],
+			["Asked s2", "$99.50"],
+			["Asked s1", "$1,250.00"],
 		]);
 	});
 
@@ -449,11 +460,11 @@ describe("SearchPage", () => {
 	});
 
 	it.each([
-		["timedOut", 5, "Timed out: 5 of 7 suppliers responded"],
-		["completed", 6, "Completed: 6 of 7 suppliers responded"],
+		["timedOut", 5, "Timed out"],
+		["completed", 6, "Completed"],
 	] as const)(
 		"SC5, I1: shows the progress without failures, and the final state for %s",
-		async (status, responded, text) => {
+		async (status, responded, finalState) => {
 			await openPage();
 			await fillForm();
 			expect(texts(".progress")).toEqual([]);
@@ -461,15 +472,139 @@ describe("SearchPage", () => {
 			expect(texts(".progress")).toEqual([]);
 
 			await push(started(id));
-			expect(texts(".progress")).toEqual(["0 of 7 suppliers responded"]);
+			expect(texts(".responded")).toEqual(["0 of 7 suppliers responded"]);
+			expect(texts(".final-state")).toEqual([""]);
+			expect(elements(".elapsed")).toHaveLength(1);
+			expect(await progressBars()).toEqual([["determinate", 0]]);
+
 			await push(quote(id, "s1", 10), failed(id, "s2"));
-			expect(texts(".progress")).toEqual(["1 of 7 suppliers responded"]);
+			expect(texts(".responded")).toEqual(["1 of 7 suppliers responded"]);
+			expect(texts(".final-state")).toEqual([""]);
+			const [[, value]] = await progressBars();
+			expect(value).toBeCloseTo(100 / 7);
 
 			const rest = ids.slice(2, responded + 1).map((supplierId) => quote(id, supplierId, 10));
 			await push(...rest, ended(id, status, responded));
-			expect(texts(".progress")).toEqual([text]);
+			expect(texts(".responded")).toEqual([`${responded} of 7 suppliers responded`]);
+			expect(texts(".final-state")).toEqual([finalState]);
+			expect(elements(".elapsed")).toHaveLength(0);
+			const [[, finalValue]] = await progressBars();
+			expect(finalValue).toBeCloseTo((responded * 100) / 7);
 		},
 	);
+
+	it("SC5: the count and the final state are announced, the timer is not", async () => {
+		await openPage();
+		await fillForm();
+		const { id, push } = await submit();
+
+		await push(started(id));
+		expect(elements(".responded[role=status], .final-state[role=status]")).toHaveLength(2);
+		expect(elements(".elapsed[role=timer]")).toHaveLength(1);
+		expect(elements("[role=status] .elapsed, .elapsed[aria-live]")).toHaveLength(0);
+		expect(elements("mat-progress-bar[aria-label='Suppliers responded']")).toHaveLength(1);
+		const [finalState] = elements(".final-state");
+
+		// A live region is announced only if it was on the page before its text changed.
+		await push(ended(id, "completed", 0));
+		expect(elements(".final-state")[0]).toBe(finalState);
+	});
+
+	describe("SC5: elapsed time", () => {
+		let now: number;
+
+		beforeEach(() => {
+			now = 1000;
+			vi.spyOn(performance, "now").mockImplementation(() => now);
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+			vi.restoreAllMocks();
+		});
+
+		async function startSearch() {
+			await openPage();
+			await fillForm();
+			// Only the interval: the harnesses and Angular wait on the other timers.
+			vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+			const search = await submit();
+			await search.push(started(search.id));
+			return search;
+		}
+
+		async function tickAt(ms: number): Promise<void> {
+			now = ms;
+			vi.advanceTimersByTime(100);
+			await fixture.whenStable();
+		}
+
+		it("SC5: shows the time since the search started, also after a late tick", async () => {
+			await startSearch();
+			expect(texts(".elapsed")).toEqual(["0.0 s"]);
+
+			await tickAt(1100);
+			expect(texts(".elapsed")).toEqual(["0.1 s"]);
+
+			await tickAt(5230);
+			expect(texts(".elapsed")).toEqual(["4.2 s"]);
+		});
+
+		it("SC5: starts again at zero for a search that replaces another", async () => {
+			await startSearch();
+			await tickAt(4000);
+			expect(texts(".elapsed")).toEqual(["3.0 s"]);
+
+			const b = await submit();
+			await b.push(started(b.id));
+			expect(texts(".elapsed")).toEqual(["0.0 s"]);
+			expect(vi.getTimerCount()).toBe(1);
+
+			await tickAt(4500);
+			expect(texts(".elapsed")).toEqual(["0.5 s"]);
+		});
+
+		it("SC5: counts from the click on Search, not from started", async () => {
+			await startSearch();
+
+			const b = await submit();
+			await tickAt(1500);
+			await b.push(started(b.id));
+
+			expect(texts(".elapsed")).toEqual(["0.5 s"]);
+		});
+
+		it("SC5: passing 6 s does not end the search, only the ended event does", async () => {
+			const { id, push } = await startSearch();
+
+			await tickAt(7500);
+			expect(texts(".elapsed")).toEqual(["6.5 s"]);
+			expect(texts(".final-state")).toEqual([""]);
+
+			await push(ended(id, "completed", 0));
+			expect(texts(".final-state")).toEqual(["Completed"]);
+			expect(vi.getTimerCount()).toBe(0);
+		});
+
+		it("SC5: stops on a stream error", async () => {
+			const { events } = await startSearch();
+			expect(vi.getTimerCount()).toBe(1);
+
+			events.error(new Error("Connection lost"));
+			await fixture.whenStable();
+
+			expect(vi.getTimerCount()).toBe(0);
+		});
+
+		it("SC5: stops when the page is left", async () => {
+			await startSearch();
+			expect(vi.getTimerCount()).toBe(1);
+
+			fixture.destroy();
+
+			expect(vi.getTimerCount()).toBe(0);
+		});
+	});
 
 	it("SC5, I1: when every supplier fails the list is empty and the search is completed", async () => {
 		await openPage();
@@ -480,7 +615,8 @@ describe("SearchPage", () => {
 		expect(elements("li")).toHaveLength(0);
 		await push(ended(id, "completed", 0));
 
-		expect(texts(".progress")).toEqual(["Completed: 0 of 7 suppliers responded"]);
+		expect(texts(".responded")).toEqual(["0 of 7 suppliers responded"]);
+		expect(texts(".final-state")).toEqual(["Completed"]);
 		expect(elements("li")).toHaveLength(0);
 	});
 
@@ -513,7 +649,8 @@ describe("SearchPage", () => {
 		await fixture.whenStable();
 
 		expect(texts(".error")).toEqual(["Connection lost"]);
-		expect(texts(".progress")).toEqual([]);
+		expect(elements(".progress")).toHaveLength(0);
+		expect(await progressBars()).toEqual([]);
 		expect(elements(".skeleton-row")).toHaveLength(0);
 		expect(rows()).toHaveLength(1);
 	});

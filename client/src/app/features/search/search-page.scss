@@ -18,6 +18,17 @@ main {
 	color: var(--mat-sys-error);
 }
 
+.progress {
+	display: flex;
+	justify-content: space-between;
+	margin: 16px 0 8px;
+}
+
+.elapsed {
+	// Digits of one width, so the number does not shake.
+	font-variant-numeric: tabular-nums;
+}
+
 ul {
 	margin: 16px 0;
 	padding: 0;
@@ -26,7 +37,7 @@ ul {
 
 .result-row {
 	display: grid;
-	grid-template-columns: 1fr 120px 100px;
+	grid-template-columns: 1fr 120px;
 	align-items: center;
 	box-sizing: border-box;
 	height: var(--row-height);
@@ -36,7 +47,6 @@ ul {
 	background-color: var(--mat-sys-surface);
 }
 
-.price,
-.response-time {
+.price {
 	text-align: right;
 }
