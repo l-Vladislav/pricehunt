@@ -75,7 +75,7 @@
 		<tr mat-header-row *matHeaderRowDef="columns"></tr>
 		<tr mat-row *matRowDef="let row; columns: columns"></tr>
 	</table>
-	@if (loading()) {
+	@if (loading() && items().length === 0) {
 		@for (row of skeletonRows; track $index) {
 			<div class="skeleton-row" aria-hidden="true"></div>
 		}

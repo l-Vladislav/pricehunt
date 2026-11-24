@@ -636,21 +636,20 @@ describe("HistoryPage", () => {
 		["a sort", () => clickHeader("Price")],
 		["a page change", async () => (await paginator()).goToNextPage()],
 		["a filter change", () => toggleSupplier("Supplier s1")],
-	])("HC2: skeleton rows replace the rows after %s", async (_, change) => {
+	])("HC2: the rows stay after %s until the response replaces them", async (_, change) => {
 		await openPageOf45();
 
 		await change();
-		expect(elements(".skeleton-row")).toHaveLength(20);
-		expect(await rows()).toEqual([]);
+		expect((await rows()).map((cells) => cells[2])).toEqual(["Supplier s1"]);
+		expect(elements(".skeleton-row")).toEqual([]);
 		expect(await rangeLabel()).toContain("of 45");
 
-		await respondWithTotal(historyRequest(), 45, item);
-		expect(elements(".skeleton-row")).toEqual([]);
-		expect(await rows()).toHaveLength(1);
+		await respondWithTotal(historyRequest(), 45, { ...item, id: 2, supplierName: "New" });
+		expect((await rows()).map((cells) => cells[2])).toEqual(["New"]);
 	});
 
 	it.each(failures)(
-		"HC2: after %s the message replaces the skeleton, another page can be tried",
+		"HC2: after %s the message replaces the rows, another page can be tried",
 		async (_, fail) => {
 			await openPageOf45();
 			await (await paginator()).goToNextPage();
@@ -688,7 +687,9 @@ describe("HistoryPage", () => {
 
 		const request = historyRequest();
 		expect(params(request, "page")).toEqual([lastPage]);
-		expect(elements(".skeleton-row")).toHaveLength(20);
+		expect(await rangeLabel()).toBe(range);
+		expect((await rows()).map((cells) => cells[2])).toEqual(["Supplier s1"]);
+		expect(elements(".skeleton-row")).toEqual([]);
 		expect(emptyMessages()).toEqual([]);
 		await respondWithTotal(request, total, item);
 		expect(await rangeLabel()).toBe(range);
@@ -704,6 +705,7 @@ describe("HistoryPage", () => {
 
 		await toggleSupplier("Supplier s1");
 		expect(emptyMessages()).toEqual([]);
+		expect(elements(".skeleton-row")).toHaveLength(20);
 	});
 
 	it("I5: a failed row shows Failed as its price", async () => {
