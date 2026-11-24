@@ -75,8 +75,8 @@ describe("SearchStore", () => {
 			suppliers: [],
 			results: [],
 			responded: 0,
-			pending: 0,
-			total: 0,
+			pending: 3,
+			total: 3,
 			status: "running",
 			errorMessage: null,
 		};
@@ -89,7 +89,6 @@ describe("SearchStore", () => {
 			results: [quote(searchId, "s1", 10).data],
 			responded: 1,
 			pending: 2,
-			total: 3,
 		};
 	}
 
@@ -98,18 +97,24 @@ describe("SearchStore", () => {
 	}
 
 	it("SC5: is idle before the first search", () => {
-		expect(state()).toEqual({ ...running(""), searchId: null, status: "idle" });
+		expect(state()).toEqual({
+			...running(""),
+			searchId: null,
+			pending: 0,
+			total: 0,
+			status: "idle",
+		});
 		expect(client.calls).toHaveLength(0);
 	});
 
-	it("SC2: sends the request with the new searchId and takes suppliers and total from started", () => {
+	it("SC2: sends the request with the new searchId and takes the suppliers from started", () => {
 		const { id, events } = startSearch();
 		expect(client.calls.map((call) => call.request)).toEqual([{ ...form, searchId: id }]);
 		expect(id).toMatch(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/);
 
 		events.next(started(id));
 
-		expect(state()).toEqual({ ...running(id), suppliers, total: 3, pending: 3 });
+		expect(state()).toEqual({ ...running(id), suppliers });
 	});
 
 	it.each([
@@ -168,6 +173,27 @@ describe("SearchStore", () => {
 		expect(state()).toEqual(running(b.id));
 	});
 
+	it("SC4: the total is the number of suppliers the new search asks", () => {
+		startSearch();
+		expect(store.total()).toBe(3);
+
+		store.search({ ...form, supplierIds: ["s2"] });
+
+		expect(store.total()).toBe(1);
+		expect(store.pending()).toBe(1);
+	});
+
+	it("SC5: without a supplier list the total comes from started", () => {
+		startSearch();
+		store.search({ ...form, supplierIds: undefined });
+		const { request, events } = client.calls[1];
+		expect(store.total()).toBe(0);
+
+		events.next(started(request.searchId));
+
+		expect(store.total()).toBe(3);
+	});
+
 	it("SC6: the state is reset before the request is sent", () => {
 		const statesWhenSent: object[] = [];
 		const search = client.search.bind(client);
@@ -195,7 +221,7 @@ describe("SearchStore", () => {
 		expect(state()).toEqual(running(b.id));
 
 		b.events.next(started(b.id));
-		expect(store.total()).toBe(3);
+		expect(store.suppliers()).toEqual(suppliers);
 	});
 
 	it("SC5, I1: responded counts only quotes, a failure leaves one supplier less pending", () => {

@@ -10,14 +10,14 @@ Show on the search page how far a search is and how it ended. The stream, the st
   search replaces another, and is read from `performance.now()`, not counted in ticks: a background tab delays them.
 - After `ended` the state is "Completed" or "Timed out". It comes from the event, never from the timer.
 - The bar is a determinate `mat-progress-bar` at `responded / total`, so it matches the text and a failure doesn't move it (I1).
-  It stays after the search ended until the next one starts, so the list doesn't jump (SC4).
-- Before `started` and after an error there is no progress line.
+  It stays after the search ended, and a new search sets it back to 0, so the list doesn't jump (SC4).
+- The line appears with the click on Search (T08b). Before the first search and after an error there is no progress line.
 - Screen readers hear the count and the final state (`role="status"`), not the timer (`role="timer"`). The bar is labelled "Suppliers responded".
 - A result row shows only the supplier and the price. The response time is in the history (HC2).
 
 ## Tests (Vitest, TestBed, `MatProgressBarHarness`)
 - SC5, I1: the count, the state and the bar for a search that ends as `timedOut` and one that ends as `completed`.
-- SC5: no line before `started`, none after an error.
+- SC5: no line before the first search, none after an error.
 - SC5: the timer shows the elapsed time, also after a late tick, and passing 6 s doesn't end the search. It counts from the click, not from `started`.
 - SC5: the timer stops on `ended`, on an error and when the page is left. It starts again at 0.0 for a search that replaces another.
 - SC5: the count and the final state are in `role="status"`, the timer is not. The bar has its label.

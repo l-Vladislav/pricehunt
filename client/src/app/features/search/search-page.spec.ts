@@ -369,6 +369,25 @@ describe("SearchPage", () => {
 		expect(after[2]).toBe(second);
 	});
 
+	it("SC4: a new search keeps the progress and the length of the list before its first event", async () => {
+		await openPage();
+		await fillForm();
+		const { id, push } = await submit();
+		await push(started(id), quote(id, "s1", 20), quote(id, "s2", 30));
+		const kept = elements(".progress, mat-progress-bar, .skeleton-row");
+		expect(kept).toHaveLength(7);
+		expect(elements("li")).toHaveLength(7);
+
+		await submit();
+
+		expect(rows()).toEqual([]);
+		expect(elements(".skeleton-row")).toHaveLength(7);
+		expect(texts(".responded")).toEqual(["0 of 7 suppliers responded"]);
+		expect(await progressBars()).toEqual([["determinate", 0]]);
+		// The same nodes: removed and added again would be the flicker.
+		expect(kept.map((element) => element.isConnected)).toEqual(kept.map(() => true));
+	});
+
 	describe("SC4: row animation", () => {
 		const rowHeight = 48;
 		const originalRect = Element.prototype.getBoundingClientRect;
@@ -535,15 +554,12 @@ describe("SearchPage", () => {
 			await fillForm();
 			expect(texts(".progress")).toEqual([]);
 			const { id, push } = await submit();
-			expect(texts(".progress")).toEqual([]);
-
-			await push(started(id));
 			expect(texts(".responded")).toEqual(["0 of 7 suppliers responded"]);
 			expect(texts(".final-state")).toEqual([""]);
 			expect(elements(".elapsed")).toHaveLength(1);
 			expect(await progressBars()).toEqual([["determinate", 0]]);
 
-			await push(quote(id, "s1", 10), failed(id, "s2"));
+			await push(started(id), quote(id, "s1", 10), failed(id, "s2"));
 			expect(texts(".responded")).toEqual(["1 of 7 suppliers responded"]);
 			expect(texts(".final-state")).toEqual([""]);
 			const [[, value]] = await progressBars();
@@ -689,8 +705,9 @@ describe("SearchPage", () => {
 	it("SC5: a skeleton row stands in for each pending supplier while the search runs", async () => {
 		await openPage();
 		await fillForm();
-		const { id, push } = await submit();
 		expect(elements(".skeleton-row")).toHaveLength(0);
+		const { id, push } = await submit();
+		expect(elements(".skeleton-row")).toHaveLength(7);
 
 		await push(started(id));
 		expect(elements(".skeleton-row")).toHaveLength(7);

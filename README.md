@@ -192,7 +192,7 @@ A server database would not need this, and it works only inside one process.
 
 ## Tests
 
-112 on the server (about 5 s) and 155 on the client (about 6 s). The test code is more than twice the size of the product code.
+112 on the server (about 5 s) and 158 on the client (about 6 s). The test code is more than twice the size of the product code.
 That is on purpose. The agent wrote both the code and the tests, so a green run alone proves little. The tests follow the IDs
 in the spec, and the code was broken on purpose to see them fail.
 

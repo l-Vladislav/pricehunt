@@ -10,8 +10,9 @@ A signal-based `SearchStore` that runs a search through `SearchStreamClient` (T0
 - The store is provided by `SearchPage` (`providers: [SearchStore]`), not in root. Leaving the page destroys it, which aborts
   the request, and the server records `Cancelled` (SS5). Coming back starts with an empty form.
 - `search(request)`: `switchMap` to the stream client, so the previous request is aborted automatically.
-  It first resets the state for the new search: new `searchId`, `results` and `suppliers` empty, `responded`, `pending` and `total` 0
-  (`total` is set by `started`), `status` `running`, no `errorMessage`. Only then is the request sent.
+  It first resets the state for the new search: new `searchId`, `results` and `suppliers` empty, `responded` 0,
+  `total` and `pending` the number of suppliers in the request, so the page doesn't collapse while it waits for `started` (SC4),
+  `status` `running`, no `errorMessage`. Only then is the request sent. `started` sets `total` to the number of suppliers it lists.
 - A stream error is caught inside the `switchMap` projection (`catchError` on the inner Observable) and turned into the
   `error` state. Otherwise the error ends the outer subscription and every later `search()` does nothing.
   A stream that completes without `ended` also ends in `error` with the message "Search ended unexpectedly", so the page never stays `running`.
@@ -34,7 +35,8 @@ push events tagged with an old `searchId` into B's Subject.
 - SC3, SC4: two quotes with the same price arrive as `s2`, then `s1`, and stay in that order (a comparator that breaks ties by id
   or name fails this).
 - SC6: starting search B while A is running aborts A, and late events from A never reach the state.
-- SC6: after A delivered a quote, starting B empties `results` and resets `responded`, `pending` and `total` before any event of B arrives.
+- SC6: after A delivered a quote, starting B empties `results` and resets `responded` and `pending` before any event of B arrives.
+- SC4: `total` is the number of suppliers in the request, also when the previous search asked more. Without a list it comes from `started`.
 - SC6: events with an old `searchId`, `started` included, pushed into B's Subject are ignored (tests the guard
   without `switchMap`).
 - SC5, I1: `responded` counts only quotes. A failure leaves one supplier less in `pending`, and so does a quote.

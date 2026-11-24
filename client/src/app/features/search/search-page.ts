@@ -68,7 +68,6 @@ export class SearchPage {
 		return this.store.status() === "running" ? Array.from({ length }) : [];
 	});
 
-	// The total is known once "started" arrives.
 	protected readonly showProgress = computed(
 		() => this.store.total() > 0 && this.store.status() !== "error",
 	);
