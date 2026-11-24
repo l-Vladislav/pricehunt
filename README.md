@@ -3,6 +3,8 @@
 Shipping-price search across seven simulated suppliers. Prices appear as each supplier answers, cheapest first.
 Every search is saved, and past prices can be filtered on the history screen.
 
+Server: .NET 10, EF Core, SQLite. Client: Angular 22, Angular Material.
+
 ## How to run
 
 Prerequisites: .NET 10 SDK, Node.js 22.22.3+ or 24.15+ (required by Angular 22). Both terminals start in the repo root.
@@ -15,12 +17,73 @@ dotnet run --project server/PriceHunt.Api
 npm start --prefix client
 ```
 
+Ports 5080 and 4142 must be free. The API accepts browser requests only from `http://localhost:4142`.
+
 Tests: `dotnet test --solution server/PriceHunt.sln` in the repo root, `npm test -- --watch=false` in `client/`.
+
+## What to look at first
+
+| If you have | Look at |
+|-------------|---------|
+| 5 minutes | Run it and search with all suppliers: it ends "Timed out: 6 of 7 suppliers responded", because one supplier never answers. Uncheck Lantern Express and it ends "Completed". Start a second search while one runs. |
+| 15 minutes | [`SearchOrchestrator.cs`](server/PriceHunt.Api/Search/SearchOrchestrator.cs): the 6 s limit, cancellation and failure isolation in one file. Its tests pin the races at the deadline listed in [T03b](docs/tasks/T03b-orchestrator-cancellation.md). |
+| 30 minutes | One requirement from spec to test, see "One requirement, end to end" below. |
+
+## How I worked: spec-driven development
+
+I used spec-driven development (SDD) with Claude Code. The spec is written and agreed before the code. The spec, plan and tasks
+are files in the repo, and the code is checked against them and not against a chat history.
+
+```mermaid
+flowchart TB
+    subgraph ONCE["Once, before the code"]
+        direction LR
+        PDF[Assignment PDF] --> SPEC["spec.md<br/>27 requirements with IDs,<br/>8 decisions"]
+        SPEC --> PLAN["plan.md + ADRs<br/>architecture, contract,<br/>data model"]
+        PLAN --> TASKS["tasks/<br/>16 small tasks"]
+    end
+    subgraph EACH["For each task"]
+        direction LR
+        RED[Failing tests] --> CODE[Code]
+        CODE --> BREAK["Break the code on purpose:<br/>does a test fail?"]
+        BREAK --> REVIEW["Reviewer agent,<br/>fresh context"]
+        REVIEW --> PR["PR, CI,<br/>my decision to merge"]
+    end
+    ONCE --> EACH
+    linkStyle default stroke:#888888,stroke-width:2px
+```
+
+| Step | What it is for |
+|------|----------------|
+| [spec.md](docs/spec.md) | Every requirement of the PDF has an ID (`SS3`, `SC6`, ...). Ambiguous points are decided here. |
+| [plan.md](docs/plan.md), [adr/](docs/adr/) | Architecture, streaming contract, concurrency model. The risky parts were built first in throwaway spikes. |
+| [tasks/](docs/tasks/) | One task is one session, one branch and one PR. A task lists its requirements, design and tests. |
+| Failing tests first | The agent writes the tests from the task file and runs them before the code. The few that already pass are checked by breaking the code (next row). |
+| Breaking the code on purpose | A passing test proves nothing if it can't fail. About 450 breaks are counted in [ai-usage.md](docs/ai-usage.md). A break that no test caught led to a new or a stricter test, or is listed in the PR with the reason. |
+| Reviewer agent | A second agent with no knowledge of the chat compares the diff with the spec and the task. |
+| [AGENTS.md](AGENTS.md), [.claude/](.claude/) | The rules, skills and permissions the agent works under. The settings deny the usual commands for pushing to `main`, force-pushing and merging. Every change after the initial commit came through a PR. |
+
+### One requirement, end to end
+`SS5`: "If the client cancels [...] the server must stop the work in progress."
+
+1. [spec.md](docs/spec.md): `SS5`, and decision `I7` (the search is stored as `Cancelled`).
+2. [plan.md](docs/plan.md#concurrency-model): which token is passed where, and what happens when it fires.
+3. Tasks [T03b](docs/tasks/T03b-orchestrator-cancellation.md) (races) and [T05a](docs/tasks/T05a-search-stream.md) (HTTP).
+4. Tests, for example `SS5_I7_ClientAbortsMidStream_SearchIsStoredAsCancelled`.
+5. PRs [#10](https://github.com/l-Vladislav/pricehunt/pull/10) and [#12](https://github.com/l-Vladislav/pricehunt/pull/12), with each break tried, the test that caught it, and the few breaks no test can see.
+
+Every requirement that can be tested automatically has at least one test that carries its ID.
+
+### What this way of working found
+- Before any code: a load test in a spike showed 10 parallel searches ending at 7.4 s instead of 6 s (see "SQLite has one writer").
+- Breaking the code: three orchestrator tests were too weak (T03b), and four wrong history queries passed every test (T06).
+- The reviewer agent: the location filter used `ToLower()`, so `Österreich` did not match itself (T06), and one unusual end date
+  stopped the history filters for good (T10a).
 
 ## Streaming: how and why
 
-`POST /api/search` answers with a Server-Sent Events stream (`text/event-stream`). The server uses `TypedResults.ServerSentEvents`
-from .NET 10. The client reads the response with `fetch` and cancels with `AbortController`.
+`POST /api/search` answers with a Server-Sent Events stream, using `TypedResults.ServerSentEvents` from .NET 10. The client
+reads it with `fetch` and cancels with `AbortController`.
 
 | Event | Meaning |
 |-------|---------|
@@ -31,26 +94,25 @@ from .NET 10. The client reads the response with `fetch` and cancels with `Abort
 
 Why this way:
 - Data flows in one direction only, so plain HTTP is enough.
-- Cancellation needs no protocol of its own. Aborting the request fires `HttpContext.RequestAborted`, which is linked with the 6 s
-  timeout and passed to every supplier call. A new search, leaving the page and a closed tab all work the same way.
-- The client creates the `searchId` and every event carries it, so an event of an old search is dropped even if it arrives late.
+- Cancellation needs no protocol of its own. Aborting the request fires `HttpContext.RequestAborted`, which is linked with the
+  6 s timeout and passed to every supplier call. A new search, leaving the page and a closed tab all work the same way.
+- The client creates the `searchId` and every event carries it, so a late event of an old search is dropped.
 
-What I rejected:
-- `EventSource`: GET only, and it reconnects when the stream closes, which would silently start the search again.
-- WebSockets: two-way, with framing, close handling and cancellation to write by hand for one-way data.
+What I rejected: `EventSource` (GET only, and it reconnects, which would silently start the search again) and WebSockets
+(two-way, with framing and cancellation to write by hand for one-way data).
 
-The price of this choice is a small SSE parser in the client, and a search that lives only as long as its connection.
-That is fine for 6 s. The full decision is in [ADR-0001](docs/adr/0001-streaming-transport.md).
+The price is a small SSE parser in the client, and a search that lives only as long as its connection. That is fine for 6 s.
+See [ADR-0001](docs/adr/0001-streaming-transport.md).
 
 On the server, each selected supplier runs as its own task. One loop takes the results in completion order (`Task.WhenEach`),
-saves each one and then streams it. Supplier tasks never touch the database. Details and diagrams are in
-[plan.md](docs/plan.md#concurrency-model).
+saves each one and then streams it. Supplier tasks never touch the database.
 
 ## Database and table structure
 
 SQLite through EF Core. The migrations run on startup, so `server/PriceHunt.Api/pricehunt.db` is created on the first run.
 
 ```mermaid
+%%{init: {'themeVariables': {'lineColor': '#888888'}}}%%
 erDiagram
     Searches ||--|{ SearchSuppliers : "was sent to"
     Suppliers ||--o{ SearchSuppliers : "was selected in"
@@ -84,78 +146,84 @@ erDiagram
     }
 ```
 
-- `Suppliers` is seeded with the seven suppliers.
-- `Searches` has one row per search. Its status is `Running` until the search ends, then one of the three final ones.
-- `SearchSuppliers` lists the suppliers the user selected.
-- `SupplierResponses` has one row per answer, failures included. The history reads this table joined with `Searches` and `Suppliers`.
+- `Searches` has one row per search. Its status is `Running` until the search ends.
+- `SearchSuppliers` lists the suppliers the user selected. `Suppliers` is seeded with the seven.
+- `SupplierResponses` has one row per answer, failures included. The history reads this table.
 
-The diagram shows logical types. SQLite stores guids, dates and times as text. Prices are integer cents: exact, and sorted as plain integers.
-Times are UTC `DateTime`, because EF Core's SQLite provider can't sort by `DateTimeOffset`.
-Besides the index on `CreatedAtUtc` for the history date filter, there are only EF's default ones on the foreign keys.
+The diagram shows logical types: SQLite stores guids, dates and times as text. Prices are integer cents, so they are exact and sort
+as plain integers. Times are UTC `DateTime`, because EF Core's SQLite provider can't sort by `DateTimeOffset`.
 
 ## Design decisions and trade-offs
 
-### Ambiguous points
-Where the assignment leaves room, these are my decisions. The other IDs (`S*`, `SS*`, `HC*`, `P*`, `D*`) are requirements in [spec.md](docs/spec.md).
+### Where the assignment leaves room
 
-| # | Question | Decision | Why |
-|---|----------|----------|-----|
-| I1 | What does "responded" mean in "N of M responded"? | Success **or** failure counts as responded. A supplier still pending at the deadline does not, and neither does one whose answer the search had not taken yet because it was still saving an earlier answer (I3). | The user wants to know how many suppliers are done. |
-| I2 | With all 7 selected, the never-responding supplier makes every search end as `TimedOut`. Is that a bug? | Expected. `Completed` is only possible when that supplier (Lantern Express) is deselected. | Follows from S4 + SS3. |
-| I3 | What is recorded for suppliers that had not answered when the search ended? | Nothing. Only real responses (success or failure) are stored. An answer that arrived before the deadline but that the search had not taken yet, because it was still saving an earlier answer of the same search, is dropped like a late one: not stored, not streamed, not counted. Which suppliers were asked is stored with the search (P1). | P2 asks for every *response*. No answer means no response. Waiting for queued writes would push the end of the search past the 6 s deadline (SS3). |
-| I4 | Which date do the history "start date / end date" filters apply to? | The **search timestamp** (when the search ran). Days are the user's local days, and the table shows local time. | The PDF's "return later and filter the history" is about when prices were seen. |
-| I5 | Do failed responses appear in the history table? | Yes, in the same five columns (HC2). The Price cell shows "Failed". Sorting by price always puts failures last. | P2 records failures. Showing them needs no extra column. |
-| I6 | Location format | Free text, trimmed, case-insensitive match in history. | The PDF has no list of locations. |
-| I7 | Search status when the client disconnects | `Cancelled`, saved with a token that is not the request token. | The request token is already cancelled at that point. |
-| I8 | One command per project with "no special setup or installation" (D1) vs. the .NET 10 / Angular 22 choice | Prerequisites are the .NET 10 SDK and Node.js 22.22.3+/24.15+. The run commands install npm packages and create the DB. | The PDF allows .NET 8+ / Angular 17+. The README lists the prerequisites first. |
+| # | Question | Decision |
+|---|----------|----------|
+| I1 | What counts as "responded"? | A price or a failure. The user wants to know how many suppliers are done. |
+| I2 | Every search with all seven suppliers ends "Timed out". Is that a bug? | No. One supplier never responds, so `Completed` is possible only without it. |
+| I3 | What is stored for a supplier that did not answer in time? | No response row, only that it was asked. An answer still queued at the deadline behind the save of an earlier one is dropped too: not stored, not streamed, not counted. |
+| I4 | Which date does the history filter use? | When the search ran, in the user's local days. |
+| I5 | Are failures shown in the history? | Yes, as "Failed" in the Price column, always last when sorted by price. |
+| I6 | What is a location? | Free text, trimmed. The history matches it ignoring case. |
+| I7 | What is stored when the client disconnects? | `Cancelled`, saved with a token that is not the request token, because that one is already cancelled. |
+| I8 | "No special setup" with .NET 10 and Angular 22? | The .NET 10 SDK and Node.js are prerequisites. The run commands install the npm packages and create the database. |
+
+The location filter is in the history API only (`fromLocation`, `toLocation`). The assignment lists it under the server and not among the screen's filters.
+
+The full reasons and edge cases are in [spec.md](docs/spec.md#2-interpretations-of-ambiguous-points).
 
 ### Main decisions
-**A result is saved before it is streamed.** Every price the user saw is in the history. The cost is that a slow write delays the event.
-Search writes ignore the request's cancellation, so a started write is finished and a cancelled search still gets its status.
+A result is saved before it is streamed. Every price the user saw is in the history. The cost is that a slow write delays the event.
 
-**Angular Material for the UI.** Form fields, datepicker, table, sort headers and paginator come from the library.
-Sorting and paging themselves run in SQL. The cost is one dependency and a theme.
-Only what Material doesn't have is written by hand: the animation that moves result rows to their new
-places (FLIP) and the skeleton rows. On the search page the skeletons are as high as the result rows, so the list doesn't jump.
-See [ADR-0002](docs/adr/0002-ui-components.md).
+Angular Material for the UI. Forms, datepicker, table, sort headers and paginator come from the library, and sorting and paging
+run in SQL. By hand: the animation that moves rows to their new places (FLIP) and the skeleton rows, which have the same height
+as result rows, so the list doesn't jump. See [ADR-0002](docs/adr/0002-ui-components.md).
 
-**SQLite has one writer.** Several searches can run at once, and each saves its responses one by one.
-SQLite lets only one connection write at a time, and the others retry with pauses. In a load test before implementation,
-10 parallel searches ended at 7.4 s instead of 6 s, and with 100, 16 of 600 responses that arrived in time were lost.
-So the recorder sends its writes through one `SemaphoreSlim` and they queue in memory instead. That brought the numbers to 6.05 s
-and 600 of 600, and 400 parallel searches still ended by 6.7 s. This is a SQLite workaround:
-a server database such as SQL Server or PostgreSQL handles concurrent writers itself and would not need it.
-It also only works inside one process.
+SQLite has one writer. Concurrent searches waited for its file lock: in a spike before implementation 10 parallel searches ended
+at 7.4 s instead of 6 s, and with 100, 16 of 600 responses that arrived in time were lost. The recorder now queues its writes in
+memory with one `SemaphoreSlim`, which brought that to 6.05 s and 600 of 600. The spike's code is not in the repo.
+A server database would not need this, and it works only inside one process.
 
 ### Known limits
 - If the server dies during a search, its status stays `Running`.
-- Two requests that use one `searchId` at the same moment both pass the check for a reused id. The second one fails on
-  the primary key instead of getting a 400.
+- Two requests that use one `searchId` at the same moment: the second one fails on the primary key instead of getting a 400.
 - A timeout that fires while the last result is being saved ends as `Completed`, because every result arrived in time.
-- The case-insensitive location match in the history covers ASCII letters only (SQLite's `NOCASE`).
+- The location match in the history ignores case for ASCII letters only (SQLite's `NOCASE`).
+
+## Tests
+
+112 on the server (about 5 s) and 133 on the client (about 6 s). The test code is more than twice the size of the product code.
+That is on purpose. The agent wrote both the code and the tests, so a green run alone proves little. The tests follow the IDs
+in the spec, and the code was broken on purpose to see them fail.
+
+| Layer | What it proves |
+|-------|----------------|
+| HTTP integration (server) | The real path: endpoint, orchestrator, SSE, SQLite with real migrations. |
+| Orchestrator | Exact races: a result during the deadline, a client that leaves during the last write. |
+| Supplier | The hanging supplier ends only through its token, the failure rate, the delay and price range. |
+| Client stream and store | SSE parsing, abort, order, progress, dropped events of an old search. |
+| Client pages | Form, results, history filters, sorting and paging. |
+
+No mocking library and no sleeps: fakes are small hand-written classes. On the server, time moves only through `FakeTimeProvider`.
+Client tests drive the events by hand.
 
 ## What I would do differently
-- Suppliers per route. Real carriers serve some routes and not others, so the supplier list would depend on the from and to
-  location. The assignment has the same seven suppliers for every route, and this project follows it.
-- A server database, such as PostgreSQL, for real load. The write gate would go away, and several instances could run.
-- Indexes for the location filter, if the history grows. It needs an index with the `NOCASE` collation, because a plain one is not
-  used for that comparison.
+- Suppliers per route. Real carriers serve some routes and not others.
+- A server database, such as PostgreSQL, for real load. The write queue would go away, and several instances could run.
+- Log a supplier's failure and keep its reason. Now a failure is only a null price.
+- Indexes for the location filter, with the `NOCASE` collation, if the history grows.
 - On startup, close the searches a crashed server left as `Running`.
-- A few end-to-end tests in a real browser. The client tests run in jsdom, which has no layout, so the smooth
-  re-ordering is tested only with stubbed measurements.
-- If searches took minutes instead of seconds: a job id and a stream the client can resume, so a lost connection doesn't lose the search.
+- A few end-to-end tests in a real browser. The client tests run in jsdom, which has no layout.
 
 ## Where AI was used
 
 Tool: Claude Code with the Claude Opus 5.5 model, in the terminal and in VS Code.
 
-| Where | What AI did |
-|-------|-------------|
-| Planning | Drafted the spec, the plan, the task files and the agent rules from my breakdown of the assignment. Wrote the CI workflow and the PR template. Compared UI options. Built the risky parts in throwaway spikes. |
-| Server and client code | Wrote the code and the tests, one task at a time, failing tests first. |
-| Checking | Broke the code on purpose to see that a test fails. Checked pages in Chrome against the running API. A second agent reviewed the tasks' diffs against the spec. |
-| Documentation | Drafted this README, ADR-0002 and the PR descriptions. |
+| Where | What AI did | What I did |
+|-------|-------------|------------|
+| Planning | Drafted the spec, plan, tasks and agent rules from my breakdown of the PDF. Wrote the CI workflow and the PR template. Compared UI options. Built the spikes. | Chose the architecture, the transport and the answers to the ambiguous points. Had everything not in the PDF removed. |
+| Code and tests | Wrote them, one task at a time, failing tests first. | Approved the steps, for some tasks in advance, and decided the open cases. |
+| Checking | Broke the code on purpose, checked pages in Chrome, reviewed diffs with a second agent. | Reviewed and merged the PRs. |
+| Documentation | Drafted this README, ADR-0002 and the PR descriptions. | Edited the docs and confirmed the first-person parts. |
 
-I chose the architecture, the streaming transport and the answers to the ambiguous points, approved the commits (for some tasks in advance), and
-reviewed and merged the PRs. [docs/ai-usage.md](docs/ai-usage.md) has a row per task with what the agent did and what I did or changed.
-Rules for the coding agent are in [`AGENTS.md`](AGENTS.md).
+[docs/ai-usage.md](docs/ai-usage.md) has a row per task.
