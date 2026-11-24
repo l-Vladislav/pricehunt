@@ -2,7 +2,8 @@
 	<a routerLink="/history">History</a>
 	<h1>PriceHunt</h1>
 
-	<form [formGroup]="form" (ngSubmit)="search()">
+	<!-- A native reset: form.reset() alone leaves date text that could not be parsed in the field. -->
+	<form [formGroup]="form" (ngSubmit)="search()" (reset)="selectAllSuppliers()">
 		<div class="fields">
 			<mat-form-field>
 				<mat-label>From location</mat-label>
@@ -26,7 +27,14 @@
 			</mat-form-field>
 			<mat-form-field class="suppliers">
 				<mat-label>Suppliers</mat-label>
-				<mat-select multiple formControlName="supplierIds">
+				<mat-select #supplierSelect multiple formControlName="supplierIds">
+					<mat-select-trigger>
+						@if (form.controls.supplierIds.value.length === suppliers().length) {
+							All ({{ suppliers().length }})
+						} @else {
+							{{ supplierSelect.triggerValue }}
+						}
+					</mat-select-trigger>
 					@for (supplier of suppliers(); track supplier.id) {
 						<mat-option [value]="supplier.id">{{ supplier.name }}</mat-option>
 					}
@@ -38,6 +46,7 @@
 		}
 
 		<button matButton="filled" type="submit" [disabled]="!canSearch()">Search</button>
+		<button matButton type="reset">Clear</button>
 	</form>
 
 	@if (showProgress()) {

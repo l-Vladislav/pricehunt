@@ -125,9 +125,13 @@ export class SearchPage {
 		});
 	}
 
+	protected selectAllSuppliers(): void {
+		this.form.controls.supplierIds.setValue(this.suppliers().map(({ id }) => id));
+	}
+
 	private showSuppliers(suppliers: Supplier[]): void {
 		this.suppliers.set(suppliers);
-		this.form.controls.supplierIds.setValue(suppliers.map(({ id }) => id));
+		this.selectAllSuppliers();
 	}
 }
 

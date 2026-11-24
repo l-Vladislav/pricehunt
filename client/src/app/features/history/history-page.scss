@@ -5,9 +5,18 @@ main {
 }
 
 .fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	display: flex;
+	flex-wrap: wrap;
 	gap: 0 16px;
+
+	mat-form-field {
+		flex: 1 1 240px;
+	}
+
+	button {
+		// Centres the 40px button on the 56px fields, which also have room for an error below.
+		margin: 8px 0 28px;
+	}
 }
 
 .error {
