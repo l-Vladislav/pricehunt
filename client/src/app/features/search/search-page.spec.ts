@@ -7,6 +7,7 @@ import {
 } from "@angular/common/http/testing";
 import { ErrorHandler } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { DateAdapter } from "@angular/material/core";
 import { MatButtonHarness } from "@angular/material/button/testing";
 import {
 	MatDatepickerInputHarness,
@@ -65,6 +66,7 @@ describe("SearchPage", () => {
 			],
 		});
 		http = TestBed.inject(HttpTestingController);
+		vi.spyOn(TestBed.inject(DateAdapter), "today").mockReturnValue(new Date(2026, 10, 20));
 	});
 
 	async function createPage(): Promise<void> {
@@ -243,6 +245,56 @@ describe("SearchPage", () => {
 		},
 	);
 
+	it.each(["From location", "To location"])("SC1: checks the symbols of %s", async (label) => {
+		await openPage();
+		await fillForm();
+		const check = async (value: string) => {
+			await setText(label, value);
+			await (await (await formField(label)).getControl(MatInputHarness))?.blur();
+			const valid = !(await (await searchButton()).isDisabled());
+			return [value, valid, await (await formField(label)).getTextErrors()];
+		};
+
+		for (const value of ["Shanghai, CN", "Österreich", "St. John's", "Port 5", "Zone5"]) {
+			expect(await check(value)).toEqual([value, true, []]);
+		}
+		for (const value of ["5", "5 12", " ", "Haifa!", "<b>", "-"]) {
+			expect(await check(value)).toEqual([value, false, ["Enter a place name"]]);
+		}
+	});
+
+	it("SC1: equal locations disable Search, whatever the case and spaces", async () => {
+		await openPage();
+		await fillForm();
+		expect(texts(".error")).toEqual([]);
+
+		await setText("To location", " haiFA ");
+		expect(texts(".error")).toEqual(["From and to locations must be different"]);
+		expect(await (await searchButton()).isDisabled()).toBe(true);
+
+		await setText("From location", "Rotterdam");
+		expect(texts(".error")).toEqual([]);
+		expect(await (await searchButton()).isDisabled()).toBe(false);
+	});
+
+	it.each([
+		["From date", "11/19/2026", "11/20/2026", "Select today or later"],
+		["To date", "11/20/2026", "11/21/2026", "Select tomorrow or later"],
+	])("SC1: %s can't be %s but can be %s", async (label, early, first, message) => {
+		await openPage();
+		await fillForm();
+		const input = await dateInput(label);
+
+		await input.setValue(early);
+		await input.blur();
+		expect(await (await formField(label)).getTextErrors()).toEqual([message]);
+		expect(await (await searchButton()).isDisabled()).toBe(true);
+
+		await input.setValue(first);
+		expect(await (await formField(label)).getTextErrors()).toEqual([]);
+		expect(await (await searchButton()).isDisabled()).toBe(false);
+	});
+
 	it("SC1: submitting starts a search with the form values", async () => {
 		await openPage();
 		await fillForm();
@@ -320,18 +372,16 @@ describe("SearchPage", () => {
 		]);
 	});
 
-	it("SC1: leaves the blank location and date order rules to the server", async () => {
+	it("SC1: leaves the date order rule to the server", async () => {
 		await openPage();
-		await setText("From location", " ");
-		await setText("To location", " ");
+		await setText("From location", "Haifa");
+		await setText("To location", "Rotterdam");
 		await pickDay("From date", "30");
 		await pickDay("To date", "23");
 
 		await submit();
 
 		expect(client.calls[0].request).toMatchObject({
-			fromLocation: " ",
-			toLocation: " ",
 			fromDate: "2026-11-30",
 			toDate: "2026-11-23",
 		});
@@ -777,7 +827,7 @@ describe("SearchPage", () => {
 	it.each([
 		["a network error", (r: TestRequest) => r.error(new ProgressEvent("error"))],
 		["a 500", (r: TestRequest) => r.flush(null, { status: 500, statusText: "Server Error" })],
-	])("SC1: shows 'Server not reachable' when the supplier list fails with %s", async (_, fail) => {
+	])("SC1: shows a friendly message when the supplier list fails with %s", async (_, fail) => {
 		await createPage();
 		const request = http.expectOne(suppliersUrl);
 		expect(texts(".error")).toEqual([]);
@@ -785,7 +835,7 @@ describe("SearchPage", () => {
 		fail(request);
 		await fixture.whenStable();
 
-		expect(texts(".error")).toEqual(["Server not reachable"]);
+		expect(texts(".error")).toEqual(["We're having technical issues. Please try again later."]);
 		expect(await (await supplierSelect()).isEmpty()).toBe(true);
 		await fillForm();
 		expect(await (await searchButton()).isDisabled()).toBe(true);

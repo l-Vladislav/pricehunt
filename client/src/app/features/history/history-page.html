@@ -50,60 +50,64 @@
 		</mat-form-field>
 		<button matButton type="reset">Clear</button>
 	</form>
-	@if (wrongDateOrder()) {
-		<p class="error" role="alert">Start date is after end date</p>
-	}
-	@if (suppliersFailed()) {
-		<p class="error" role="alert">Suppliers not found</p>
-	}
-
-	<table
-		mat-table
-		[dataSource]="items()"
-		matSort
-		matSortActive="date"
-		matSortDirection="desc"
-		matSortDisableClear
-		(matSortChange)="sort($event)"
-	>
-		<ng-container matColumnDef="date">
-			<th mat-header-cell mat-sort-header *matHeaderCellDef>Date</th>
-			<td mat-cell *matCellDef="let item">{{ item.date | date: "yyyy-MM-dd HH:mm" }}</td>
-		</ng-container>
-		<ng-container matColumnDef="route">
-			<th mat-header-cell mat-sort-header *matHeaderCellDef>Route</th>
-			<td mat-cell *matCellDef="let item">{{ item.fromLocation }} → {{ item.toLocation }}</td>
-		</ng-container>
-		<ng-container matColumnDef="supplier">
-			<th mat-header-cell mat-sort-header *matHeaderCellDef>Supplier</th>
-			<td mat-cell *matCellDef="let item">{{ item.supplierName }}</td>
-		</ng-container>
-		<ng-container matColumnDef="price">
-			<th mat-header-cell mat-sort-header *matHeaderCellDef>Price</th>
-			<td mat-cell *matCellDef="let item">{{ item.price | currency: "USD" }}</td>
-		</ng-container>
-		<ng-container matColumnDef="responseTime">
-			<th mat-header-cell mat-sort-header *matHeaderCellDef>Response time</th>
-			<td mat-cell *matCellDef="let item">{{ item.responseTimeMs }} ms</td>
-		</ng-container>
-		<tr mat-header-row *matHeaderRowDef="columns"></tr>
-		<tr mat-row *matRowDef="let row; columns: columns"></tr>
-	</table>
-	@if (loading() && items().length === 0) {
-		@for (row of skeletonRows; track $index) {
-			<div class="skeleton-row" aria-hidden="true"></div>
+	<div class="form-errors">
+		@if (wrongDateOrder()) {
+			<p class="error" role="alert">Start date is after end date</p>
 		}
-	} @else if (historyFailed()) {
-		<p class="error" role="alert">History is unavailable, please try again later</p>
-	} @else if (items().length === 0) {
-		<p role="status">No searches found</p>
-	}
+		@if (suppliersFailed()) {
+			<p class="error" role="alert">Suppliers not found</p>
+		}
+	</div>
+
+	<div class="table-area" #tableArea>
+		<table
+			mat-table
+			[dataSource]="items()"
+			matSort
+			matSortActive="date"
+			matSortDirection="desc"
+			matSortDisableClear
+			(matSortChange)="sort($event)"
+		>
+			<ng-container matColumnDef="date">
+				<th mat-header-cell mat-sort-header *matHeaderCellDef>Date</th>
+				<td mat-cell *matCellDef="let item">{{ item.date | date: "yyyy-MM-dd HH:mm" }}</td>
+			</ng-container>
+			<ng-container matColumnDef="route">
+				<th mat-header-cell mat-sort-header *matHeaderCellDef>Route</th>
+				<td mat-cell *matCellDef="let item">{{ item.fromLocation }} → {{ item.toLocation }}</td>
+			</ng-container>
+			<ng-container matColumnDef="supplier">
+				<th mat-header-cell mat-sort-header *matHeaderCellDef>Supplier</th>
+				<td mat-cell *matCellDef="let item">{{ item.supplierName }}</td>
+			</ng-container>
+			<ng-container matColumnDef="price">
+				<th mat-header-cell mat-sort-header *matHeaderCellDef>Price</th>
+				<td mat-cell *matCellDef="let item">{{ item.price | currency: "USD" }}</td>
+			</ng-container>
+			<ng-container matColumnDef="responseTime">
+				<th mat-header-cell mat-sort-header *matHeaderCellDef>Response time</th>
+				<td mat-cell *matCellDef="let item">{{ item.responseTimeMs }} ms</td>
+			</ng-container>
+			<tr mat-header-row *matHeaderRowDef="columns; sticky: true"></tr>
+			<tr mat-row *matRowDef="let row; columns: columns"></tr>
+		</table>
+		@if (loading() && items().length === 0) {
+			@for (row of skeletonRows; track $index) {
+				<div class="skeleton-row" aria-hidden="true"></div>
+			}
+		} @else if (historyFailed()) {
+			<p class="error" role="alert">History is unavailable, please try again later</p>
+		} @else if (items().length === 0) {
+			<p role="status">No searches found</p>
+		}
+	</div>
 	<mat-paginator
 		aria-label="History pages"
 		hidePageSize
 		[length]="total()"
 		[pageIndex]="view().pageIndex"
 		[pageSize]="pageSize"
-		(page)="showPage($event.pageIndex)"
+		(page)="tableArea.scrollTop = 0; showPage($event.pageIndex)"
 	/>
 </main>

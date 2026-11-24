@@ -205,10 +205,12 @@ describe("SearchStreamClient", () => {
 		expect(await new Recording(client).next()).toEqual(new Error(message));
 	});
 
-	it("SC2: a rejected fetch errors with Server not reachable", async () => {
+	it("SC2: a rejected fetch errors with a friendly message", async () => {
 		fakeFetch.respond = () => Promise.reject(new TypeError("Failed to fetch"));
 
-		expect(await new Recording(client).next()).toEqual(new Error("Server not reachable"));
+		expect(await new Recording(client).next()).toEqual(
+			new Error("We're having technical issues. Please try again later."),
+		);
 	});
 
 	it("SC2: a read that fails mid-stream errors with Connection lost", async () => {

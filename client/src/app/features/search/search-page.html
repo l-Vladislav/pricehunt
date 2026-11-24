@@ -8,22 +8,26 @@
 			<mat-form-field>
 				<mat-label>From location</mat-label>
 				<input matInput formControlName="fromLocation" />
+				<mat-error>Enter a place name</mat-error>
 			</mat-form-field>
 			<mat-form-field>
 				<mat-label>To location</mat-label>
 				<input matInput formControlName="toLocation" />
+				<mat-error>Enter a place name</mat-error>
 			</mat-form-field>
 			<mat-form-field>
 				<mat-label>From date</mat-label>
-				<input matInput [matDatepicker]="fromDatePicker" formControlName="fromDate" />
+				<input matInput [matDatepicker]="fromDatePicker" [min]="today" formControlName="fromDate" />
 				<mat-datepicker-toggle matIconSuffix [for]="fromDatePicker" />
 				<mat-datepicker #fromDatePicker />
+				<mat-error>Select today or later</mat-error>
 			</mat-form-field>
 			<mat-form-field>
 				<mat-label>To date</mat-label>
-				<input matInput [matDatepicker]="toDatePicker" formControlName="toDate" />
+				<input matInput [matDatepicker]="toDatePicker" [min]="tomorrow" formControlName="toDate" />
 				<mat-datepicker-toggle matIconSuffix [for]="toDatePicker" />
 				<mat-datepicker #toDatePicker />
+				<mat-error>Select tomorrow or later</mat-error>
 			</mat-form-field>
 			<mat-form-field>
 				<mat-label>Suppliers</mat-label>
@@ -45,9 +49,14 @@
 				<button matButton type="reset">Clear</button>
 			</div>
 		</div>
-		@if (suppliersFailed()) {
-			<p class="error" role="alert">Server not reachable</p>
-		}
+		<div class="form-errors">
+			@if (sameLocations()) {
+				<p class="error" role="alert">From and to locations must be different</p>
+			}
+			@if (suppliersFailed()) {
+				<p class="error" role="alert">We're having technical issues. Please try again later.</p>
+			}
+		</div>
 	</form>
 
 	@if (showProgress()) {
