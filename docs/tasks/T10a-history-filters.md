@@ -8,14 +8,15 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
 - `HistoryApi` in `core/`: `GET /api/history` with typed DTOs matching plan.md.
 - The filter days are the user's local days (I4). `startDate` is the local midnight of the start day and `endDate` the local
   midnight of the day after the end day (`new Date(y, m, d + 1)`), both sent with `toISOString()`.
-- Filters: start and end date (Material datepickers), supplier multi-select (`mat-select multiple`). Suppliers come from `SuppliersApi` (T08a).
+- Filters: start and end date (Material datepickers), supplier multi-select (`mat-select multiple`). Suppliers come from `SuppliersApi` (T08a),
+  all selected by default (T12d).
   The location filter exists on the server (HS2) but the PDF's history screen asks only for dates and suppliers, so it isn't in the UI.
 - `mat-table` with columns Date, Route ("A → B"), Supplier, Price, Response time. Date is the UTC `date` from the API shown in
   local time with `DatePipe` (`yyyy-MM-dd HH:mm`). Failed responses are not in the table (I5, T06).
 - On open the page loads page 1 with no filters: `page=1&pageSize=20&sortBy=date&sortDir=desc`. T10b keeps this request unchanged.
-- Filters apply on change, only when the filter form is valid. No Apply button. A start date after the end date (form validator,
-  mirrors the server's 400) sends nothing and shows "Start date is after end date". The message, like the request, waits for
-  `dateChange`. Days are compared, so a typed time doesn't matter.
+- Filters apply on change (the suppliers when the list closes, T12d), only when the filter form is valid. No Apply button.
+  A start date after the end date (form validator, mirrors the server's 400) sends nothing and shows "Start date is after end date".
+  The message, like the request, waits for `dateChange`. Days are compared, so a typed time doesn't matter. The Clear button is in T12d.
 - If the supplier list fails to load, the page shows "Suppliers not found". The table still works.
 - A failed history request shows "History is unavailable, please try again later" in place of the rows. The next filter change
   sends a new request and cancels one still running.
@@ -27,7 +28,7 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
 - HC1: the filter form has start date, end date and a supplier multi-select.
 - HC1, I4: picking Nov 23 as start and end date calls the API with `startDate` = `new Date(2026, 10, 23).toISOString()` and
   `endDate` = `new Date(2026, 10, 24).toISOString()` (in CI's `Asia/Jerusalem`: `2026-11-22T22:00:00.000Z` and
-  `2026-11-23T22:00:00.000Z`). Picking suppliers sends repeated `supplierIds`.
+  `2026-11-23T22:00:00.000Z`). Changing the suppliers sends repeated `supplierIds`.
 - HC1: opening the page requests exactly `page=1&pageSize=20&sortBy=date&sortDir=desc`.
 - HC1: typing `11/23/2026` key by key on the raw input (`TestElement.sendKeys`) sends no request; dispatching `change` then sends
   exactly one, with `startDate` = `new Date(2026, 10, 23).toISOString()`.

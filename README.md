@@ -192,7 +192,7 @@ A server database would not need this, and it works only inside one process.
 
 ## Tests
 
-112 on the server (about 5 s) and 142 on the client (about 6 s). The test code is more than twice the size of the product code.
+112 on the server (about 5 s) and 155 on the client (about 6 s). The test code is more than twice the size of the product code.
 That is on purpose. The agent wrote both the code and the tests, so a green run alone proves little. The tests follow the IDs
 in the spec, and the code was broken on purpose to see them fail.
 
@@ -220,7 +220,7 @@ Tool: Claude Code with the Claude Opus 5.5 model, in the terminal and in VS Code
 
 | Where | What AI did | What I did |
 |-------|-------------|------------|
-| Planning | Drafted the spec, plan, tasks and agent rules from my breakdown of the PDF. Wrote the CI workflow and the PR template. Compared UI options. Built the spikes. | Chose the architecture, the transport and the answers to the ambiguous points. Had everything not in the PDF removed. |
+| Planning | Drafted the spec, plan, tasks and agent rules from my breakdown of the PDF. Wrote the CI workflow and the PR template. Compared UI options. Built the spikes. | Chose the architecture, the transport and the answers to the ambiguous points. |
 | Code and tests | Wrote them, one task at a time, failing tests first. | Approved the steps, for some tasks in advance, and decided the open cases. |
 | Checking | Broke the code on purpose, checked pages in Chrome, reviewed diffs with a second agent. | Reviewed and merged the PRs. |
 | Documentation | Drafted this README, ADR-0002 and the PR descriptions. | Edited the docs and confirmed the first-person parts. |

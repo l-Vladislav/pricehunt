@@ -9,7 +9,7 @@ Pick suppliers on the search page with the same multi-select as in the history f
 - `Validators.required` keeps at least one supplier selected. The API treats an empty list as "all", which is not what the user chose.
 - The request always lists the selected ids, also when all are selected.
 - If the supplier list fails to load, "Server not reachable" is shown below the fields and Search stays disabled.
-- The select takes a full row, so most of the selected names fit.
+- The select takes a full row, so most of the selected names fit. With all selected it shows "All (7)" (T12d).
 
 ## Tests (Vitest, TestBed, `MatSelectHarness`)
 - SC1: the select is multiple and lists every supplier, all selected.
@@ -18,4 +18,4 @@ Pick suppliers on the search page with the same multi-select as in the history f
 - SC1: the default selection sends the ids of every supplier.
 - SC1: the supplier list request fails → "Server not reachable", nothing selected, Search disabled.
 
-Manual check with `npm start`: the select takes a full row, most of the selected names are readable, and the list opens.
+Manual check with `npm start`: the select takes a full row, most names are readable when not all are selected, and the list opens.

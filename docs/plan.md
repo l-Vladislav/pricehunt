@@ -167,3 +167,4 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T12a](tasks/T12a-supplier-select.md) | Search page: supplier multi-select | SC1 | [x] |
 | [T12b](tasks/T12b-count-prices.md) | Count and show only prices | SC5, HS1, HC2, I1, I5 | [x] |
 | [T12c](tasks/T12c-search-progress.md) | Search page: progress bar and elapsed time | SC2, SC4, SC5, I1 | [x] |
+| [T12d](tasks/T12d-form-defaults.md) | Form defaults and the Clear button | SC1, HC1 | [x] |
