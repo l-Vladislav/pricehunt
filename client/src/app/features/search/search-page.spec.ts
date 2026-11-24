@@ -124,6 +124,25 @@ describe("SearchPage", () => {
 		return loader.getHarness(MatButtonHarness.with({ text: "Search" }));
 	}
 
+	async function clickClear(): Promise<void> {
+		const button = await loader.getHarness(MatButtonHarness.with({ text: "Clear" }));
+		await button.click();
+		expect(await button.isDisabled()).toBe(false);
+	}
+
+	async function expectDefaultForm(): Promise<void> {
+		for (const label of ["From location", "To location"]) {
+			const input = await (await formField(label)).getControl(MatInputHarness);
+			expect(await input?.getValue()).toBe("");
+		}
+		for (const label of ["From date", "To date"]) {
+			expect(await (await dateInput(label)).getValue()).toBe("");
+		}
+		expect(await (await supplierSelect()).getValueText()).toBe("All (7)");
+		expect(await (await searchButton()).isDisabled()).toBe(true);
+		expect(elements(".mat-form-field-invalid")).toEqual([]);
+	}
+
 	async function submit(): Promise<{
 		id: string;
 		events: Subject<SearchEvent>;
@@ -252,6 +271,53 @@ describe("SearchPage", () => {
 		await submit();
 
 		expect(client.calls[0].request.supplierIds).toEqual(ids);
+	});
+
+	it("SC1: the select shows the names unless every supplier is selected", async () => {
+		await openPage();
+		const select = await supplierSelect();
+		expect(await select.getValueText()).toBe("All (7)");
+		await select.open();
+
+		await select.clickOptions({ text: /s[1-5]$/ });
+		expect(await select.getValueText()).toBe("Supplier s6, Supplier s7");
+
+		await select.clickOptions({ text: /s[1-5]$/ });
+		expect(await select.getValueText()).toBe("All (7)");
+	});
+
+	it("SC1: Clear restores the defaults", async () => {
+		await openPage();
+		await fillForm();
+		await (await dateInput("From date")).setValue("abc");
+		const select = await supplierSelect();
+		await select.open();
+		await select.clickOptions();
+		expect(await select.isEmpty()).toBe(true);
+
+		await clickClear();
+
+		await expectDefaultForm();
+		await fillForm();
+		expect(await (await searchButton()).isDisabled()).toBe(false);
+	});
+
+	it("SC1: Clear keeps the running search and its results", async () => {
+		await openPage();
+		await fillForm();
+		const { id, events, push } = await submit();
+		await push(started(id), quote(id, "s1", 20));
+
+		await clickClear();
+
+		await expectDefaultForm();
+		expect(client.calls).toHaveLength(1);
+		expect(events.observed).toBe(true);
+		await push(quote(id, "s2", 30));
+		expect(rows()).toEqual([
+			["Asked s1", "$20.00"],
+			["Asked s2", "$30.00"],
+		]);
 	});
 
 	it("SC1: leaves the blank location and date order rules to the server", async () => {

@@ -8,7 +8,7 @@ The `SearchPage` component: the form, the live result list and the progress line
 - `SearchPage` is the default route (`''`), lazy-loaded: with Material in the initial bundle the build exceeds its 500 kB budget.
 - It provides `SearchStore` (T08a), so leaving the page aborts the search (SS5).
 - Form: reactive forms with `Validators.required` on the four fields, built from Material form fields, two datepickers
-  and a supplier multi-select (T12a). Suppliers come from `SuppliersApi`, all selected by default.
+  and a supplier multi-select (T12a). The Clear button is in T12d. Suppliers come from `SuppliersApi`, all selected by default.
   At least one supplier must stay selected: the API treats an empty list as "all", which is not what the user chose.
   If the supplier list fails to load, the form shows "Server not reachable" below the fields.
 - The other server rules (T05b: whitespace-only location, `fromDate > toDate`) are not repeated on the client. Their 400 is shown

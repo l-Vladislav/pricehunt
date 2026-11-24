@@ -7,7 +7,9 @@ import {
 	FormGroup,
 	ReactiveFormsModule,
 	ValidationErrors,
+	Validators,
 } from "@angular/forms";
+import { MatButtonModule } from "@angular/material/button";
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
@@ -32,6 +34,7 @@ interface HistoryView {
 	imports: [
 		CurrencyPipe,
 		DatePipe,
+		MatButtonModule,
 		MatDatepickerModule,
 		MatFormFieldModule,
 		MatInputModule,
@@ -76,12 +79,14 @@ export class HistoryPage {
 		pageIndex: 0,
 	});
 
+	private supplierIdsOnOpen: string[] = [];
+
 	constructor() {
 		inject(SuppliersApi)
 			.getSuppliers()
 			.pipe(takeUntilDestroyed())
 			.subscribe({
-				next: (suppliers) => this.suppliers.set(suppliers),
+				next: (suppliers) => this.showSuppliers(suppliers),
 				error: () => this.suppliersFailed.set(true),
 			});
 
@@ -120,6 +125,22 @@ export class HistoryPage {
 		}
 	}
 
+	protected suppliersOpened(): void {
+		this.supplierIdsOnOpen = this.form.controls.supplierIds.value;
+	}
+
+	// Not per option: choosing one of many suppliers would send a request for each one deselected.
+	protected suppliersClosed(): void {
+		if (this.form.controls.supplierIds.value.join() !== this.supplierIdsOnOpen.join()) {
+			this.applyFilters();
+		}
+	}
+
+	protected resetFilters(): void {
+		this.selectAllSuppliers();
+		this.applyFilters();
+	}
+
 	protected sort({ active, direction }: Sort): void {
 		this.view.update((view) => ({
 			...view,
@@ -131,6 +152,17 @@ export class HistoryPage {
 
 	protected showPage(pageIndex: number): void {
 		this.view.update((view) => ({ ...view, pageIndex }));
+	}
+
+	private showSuppliers(suppliers: Supplier[]): void {
+		this.suppliers.set(suppliers);
+		// Not required from the start: the date filters must work if the suppliers fail to load.
+		this.form.controls.supplierIds.addValidators(Validators.required);
+		this.selectAllSuppliers();
+	}
+
+	private selectAllSuppliers(): void {
+		this.form.controls.supplierIds.setValue(this.suppliers().map(({ id }) => id));
 	}
 
 	private query({ filters, sortBy, sortDir, pageIndex }: HistoryView): HistoryQuery {
