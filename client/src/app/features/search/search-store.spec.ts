@@ -62,6 +62,7 @@ describe("SearchStore", () => {
 			suppliers: store.suppliers(),
 			results: store.results(),
 			responded: store.responded(),
+			pending: store.pending(),
 			total: store.total(),
 			status: store.status(),
 			errorMessage: store.errorMessage(),
@@ -74,6 +75,7 @@ describe("SearchStore", () => {
 			suppliers: [],
 			results: [],
 			responded: 0,
+			pending: 0,
 			total: 0,
 			status: "running",
 			errorMessage: null,
@@ -86,6 +88,7 @@ describe("SearchStore", () => {
 			suppliers,
 			results: [quote(searchId, "s1", 10).data],
 			responded: 1,
+			pending: 2,
 			total: 3,
 		};
 	}
@@ -106,7 +109,7 @@ describe("SearchStore", () => {
 
 		events.next(started(id));
 
-		expect(state()).toEqual({ ...running(id), suppliers, total: 3 });
+		expect(state()).toEqual({ ...running(id), suppliers, total: 3, pending: 3 });
 	});
 
 	it.each([
@@ -156,7 +159,9 @@ describe("SearchStore", () => {
 		const a = startSearch();
 		a.events.next(started(a.id));
 		a.events.next(quote(a.id, "s1", 10));
+		a.events.next(failed(a.id, "s2"));
 		expect(store.responded()).toBe(1);
+		expect(store.pending()).toBe(1);
 
 		const b = startSearch();
 
@@ -193,14 +198,16 @@ describe("SearchStore", () => {
 		expect(store.total()).toBe(3);
 	});
 
-	it("SC5, I1: responded counts quotes and failures, results holds only quotes", () => {
+	it("SC5, I1: responded counts only quotes, a failure leaves one supplier less pending", () => {
 		const { id, events } = startSearch();
 		events.next(started(id));
 
 		events.next(failed(id, "s2"));
-		expect(store.responded()).toBe(1);
+		expect(store.responded()).toBe(0);
+		expect(store.pending()).toBe(2);
 		events.next(quote(id, "s1", 10));
-		expect(store.responded()).toBe(2);
+		expect(store.responded()).toBe(1);
+		expect(store.pending()).toBe(1);
 
 		expect(store.total()).toBe(3);
 		expect(resultIds()).toEqual(["s1"]);

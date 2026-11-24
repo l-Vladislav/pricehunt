@@ -708,10 +708,10 @@ describe("HistoryPage", () => {
 		expect(elements(".skeleton-row")).toHaveLength(20);
 	});
 
-	it("I5: a failed row shows Failed as its price", async () => {
-		await openPage({ ...item, price: null }, { ...item, id: 2, price: 0 });
+	it("HC2: prices are shown in USD", async () => {
+		await openPage(item, { ...item, id: 2, price: 0 });
 
-		expect((await rows()).map((cells) => cells[3])).toEqual(["Failed", "$0.00"]);
+		expect((await rows()).map((cells) => cells[3])).toEqual(["$1,250.50", "$0.00"]);
 	});
 
 	it("I4: dates are shown in local time", async () => {

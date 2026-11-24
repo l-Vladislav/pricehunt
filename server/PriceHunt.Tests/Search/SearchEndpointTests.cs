@@ -54,7 +54,7 @@ public class SearchEndpointTests
     }
 
     [Fact]
-    public async Task SS3_I1_I2_DefaultSearch_EndsTimedOutAtSixSeconds_WithSixOfSevenResponded()
+    public async Task SS3_I1_I2_DefaultSearch_EndsTimedOutAtSixSeconds_WithFiveOfSevenResponded()
     {
         await using var factory = new PriceHuntApiFactory();
         using var client = factory.CreateClient();
@@ -66,13 +66,13 @@ public class SearchEndpointTests
 
         var ended = await events.NextAsync("ended");
         Assert.Equal("timedOut", ended.Data.GetProperty("status").GetString());
-        Assert.Equal(6, ended.Data.GetProperty("responded").GetInt32());
+        Assert.Equal(5, ended.Data.GetProperty("responded").GetInt32());
         Assert.Equal(7, ended.Data.GetProperty("total").GetInt32());
         await events.AssertClosedAsync();
     }
 
     [Fact]
-    public async Task SS3_I2_HangingSupplierDeselected_EndsCompletedBeforeTheDeadline()
+    public async Task SS3_I1_I2_HangingSupplierDeselected_EndsCompletedBeforeTheDeadline()
     {
         await using var factory = new PriceHuntApiFactory();
         using var client = factory.CreateClient();
@@ -85,7 +85,7 @@ public class SearchEndpointTests
 
         var ended = await events.NextAsync("ended");
         Assert.Equal("completed", ended.Data.GetProperty("status").GetString());
-        Assert.Equal(6, ended.Data.GetProperty("responded").GetInt32());
+        Assert.Equal(5, ended.Data.GetProperty("responded").GetInt32());
         Assert.Equal(6, ended.Data.GetProperty("total").GetInt32());
         await events.AssertClosedAsync();
     }

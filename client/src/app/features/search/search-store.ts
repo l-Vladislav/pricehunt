@@ -39,6 +39,7 @@ export class SearchStore {
 	readonly results = computed(() => this.state().results);
 	readonly responded = computed(() => this.state().responded);
 	readonly total = computed(() => this.state().total);
+	readonly pending = computed(() => this.total() - this.responded());
 	readonly status = computed(() => this.state().status);
 	readonly errorMessage = computed(() => this.state().errorMessage);
 

@@ -449,10 +449,10 @@ describe("SearchPage", () => {
 	});
 
 	it.each([
-		["timedOut", 6, "Timed out: 6 of 7 suppliers responded"],
-		["completed", 7, "Completed: 7 of 7 suppliers responded"],
+		["timedOut", 5, "Timed out: 5 of 7 suppliers responded"],
+		["completed", 6, "Completed: 6 of 7 suppliers responded"],
 	] as const)(
-		"SC5: shows the progress, and the final state for %s",
+		"SC5, I1: shows the progress without failures, and the final state for %s",
 		async (status, responded, text) => {
 			await openPage();
 			await fillForm();
@@ -463,13 +463,26 @@ describe("SearchPage", () => {
 			await push(started(id));
 			expect(texts(".progress")).toEqual(["0 of 7 suppliers responded"]);
 			await push(quote(id, "s1", 10), failed(id, "s2"));
-			expect(texts(".progress")).toEqual(["2 of 7 suppliers responded"]);
+			expect(texts(".progress")).toEqual(["1 of 7 suppliers responded"]);
 
-			const rest = ids.slice(2, responded).map((supplierId) => quote(id, supplierId, 10));
+			const rest = ids.slice(2, responded + 1).map((supplierId) => quote(id, supplierId, 10));
 			await push(...rest, ended(id, status, responded));
 			expect(texts(".progress")).toEqual([text]);
 		},
 	);
+
+	it("SC5, I1: when every supplier fails the list is empty and the search is completed", async () => {
+		await openPage();
+		await fillForm();
+		const { id, push } = await submit();
+
+		await push(started(id), ...ids.map((supplierId) => failed(id, supplierId)));
+		expect(elements("li")).toHaveLength(0);
+		await push(ended(id, "completed", 0));
+
+		expect(texts(".progress")).toEqual(["Completed: 0 of 7 suppliers responded"]);
+		expect(elements("li")).toHaveLength(0);
+	});
 
 	it("SC5: a skeleton row stands in for each pending supplier while the search runs", async () => {
 		await openPage();
@@ -484,7 +497,7 @@ describe("SearchPage", () => {
 		const [firstRow] = elements(".result-row, .skeleton-row");
 		expect(firstRow.classList).toContain("result-row");
 
-		await push(ended(id, "timedOut", 2));
+		await push(ended(id, "timedOut", 1));
 		expect(elements(".skeleton-row")).toHaveLength(0);
 		expect(rows()).toHaveLength(1);
 	});
