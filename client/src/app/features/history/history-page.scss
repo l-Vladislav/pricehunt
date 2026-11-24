@@ -1,5 +1,7 @@
+@use "@angular/material" as mat;
+
 main {
-	max-width: 1000px;
+	max-width: 1200px;
 	margin: 0 auto;
 	padding: 16px;
 }
@@ -10,7 +12,7 @@ main {
 	gap: 0 16px;
 
 	mat-form-field {
-		flex: 1 1 240px;
+		flex: 1 1 160px;
 	}
 
 	button {
@@ -24,6 +26,12 @@ main {
 }
 
 table {
+	// The same line as between the rows on the search page.
+	@include mat.table-overrides(
+		(
+			row-item-outline-color: var(--mat-sys-outline-variant),
+		)
+	);
 	width: 100%;
 	table-layout: fixed;
 }
