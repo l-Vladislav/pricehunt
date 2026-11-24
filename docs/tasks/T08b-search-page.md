@@ -14,13 +14,13 @@ The `SearchPage` component: the form, the live result list and the progress line
 - The other server rules (T05b: whitespace-only location, `fromDate > toDate`) are not repeated on the client. Their 400 is shown
   as `errorMessage` (T07).
 - Search stays enabled while a search runs: submitting again starts a new search and cancels the old one (SC6).
-- Each row shows supplier name (from `started`), price in USD and response time. Rows are rendered with
+- Each row shows supplier name (from `started`) and price in USD. Rows are rendered with
   `@for (r of results(); track r.supplierId)`, which T09 relies on.
 - While the search runs, a skeleton row stands in for each supplier that hasn't answered yet:
   `pending` (T08a) rows below the results. They go away when the search ends. This is the loading state, not a new feature.
   The `.skeleton-row` class is global CSS (fixed row height, shimmer, no animation under `prefers-reduced-motion`); T10b reuses it.
-- Progress text: "N of M suppliers responded" while running. After `ended` it becomes "Completed: N of M suppliers responded"
-  or "Timed out: N of M suppliers responded". Before `started` arrives there is no progress line. An error shows `errorMessage`.
+- Progress text: "N of M suppliers responded" while running. The timer, the final state and the bar are in T12c.
+  Before `started` arrives there is no progress line. An error shows `errorMessage`.
 
 ## Tests (Vitest, TestBed, `SearchStore` with the fake stream client from T08a)
 - SC1: the form shows from/to location, from/to date and every supplier selected. Deselecting all of them disables Search.
@@ -28,8 +28,8 @@ The `SearchPage` component: the form, the live result list and the progress line
 - SC1: submitting starts a search with the form values; a date picked as 23 Nov is sent as `"fromDate":"2026-11-23"`.
 - SC2: rows appear as events arrive, in price order.
 - SC4: after a re-order, each supplier's row is the same DOM node as before (`track` reuses nodes; T09 relies on it).
-- SC5: no progress line before `started`; then "1 of 7 suppliers responded" after a quote and a failure (I1); after `ended` "Timed out: 5 of 7 suppliers responded"
-  (and "Completed: 6 of 7 suppliers responded" in a second case).
+- SC5: no progress line before `started`; then "1 of 7 suppliers responded" after a quote and a failure (I1); after `ended` "5 of 7 suppliers responded" and "Timed out"
+  ("6 of 7 suppliers responded" and "Completed" in a second case).
 - SC6: submit, push A's `started`, click the Search button again (it is enabled) → the fake stream client got a second call and A's Subject was unsubscribed.
 - The supplier list request fails (`HttpTestingController` error) → "Server not reachable" is shown.
 - SC5: while running, the number of skeleton rows is `pending`, so a failure also removes one; after `ended` there are none.
