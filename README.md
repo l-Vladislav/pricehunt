@@ -25,7 +25,7 @@ Tests: `dotnet test --solution server/PriceHunt.sln` in the repo root, `npm test
 
 | If you have | Look at |
 |-------------|---------|
-| 5 minutes | Run it and search with all suppliers: it ends "Timed out: 6 of 7 suppliers responded", because one supplier never answers. Uncheck Lantern Express and it ends "Completed". Start a second search while one runs. |
+| 5 minutes | Run it and search with all suppliers: it ends "Timed out: 6 of 7 suppliers responded", because one supplier never answers. Deselect Lantern Express and it ends "Completed". Start a second search while one runs. |
 | 15 minutes | [`SearchOrchestrator.cs`](server/PriceHunt.Api/Search/SearchOrchestrator.cs): the 6 s limit, cancellation and failure isolation in one file. Its tests pin the races at the deadline listed in [T03b](docs/tasks/T03b-orchestrator-cancellation.md). |
 | 30 minutes | One requirement from spec to test, see "One requirement, end to end" below. |
 
@@ -40,7 +40,7 @@ flowchart TB
         direction LR
         PDF[Assignment PDF] --> SPEC["spec.md<br/>27 requirements with IDs,<br/>8 decisions"]
         SPEC --> PLAN["plan.md + ADRs<br/>architecture, contract,<br/>data model"]
-        PLAN --> TASKS["tasks/<br/>16 small tasks"]
+        PLAN --> TASKS["tasks/<br/>small tasks"]
     end
     subgraph EACH["For each task"]
         direction LR
@@ -192,7 +192,7 @@ A server database would not need this, and it works only inside one process.
 
 ## Tests
 
-112 on the server (about 5 s) and 133 on the client (about 6 s). The test code is more than twice the size of the product code.
+112 on the server (about 5 s) and 134 on the client (about 6 s). The test code is more than twice the size of the product code.
 That is on purpose. The agent wrote both the code and the tests, so a green run alone proves little. The tests follow the IDs
 in the spec, and the code was broken on purpose to see them fail.
 
