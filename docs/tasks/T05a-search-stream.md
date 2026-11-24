@@ -21,8 +21,8 @@ Tests await it instead of polling. Read the response with `HttpCompletionOption.
 incrementally with a small helper in the test project. Advance time only after `started` is read, and read the expected events
 before advancing again. Every test waits for its search to end before the factory is disposed (see `AGENTS.md`).
 - SS2: `started` arrives before any supplier completes. Advancing step by step, each supplier's event arrives after its own delay and in delay order.
-- SS3, I1, I2: default search (all 7), advance 5 s and read 6 results, then advance 1 s → `ended { status: "timedOut", responded: 6, total: 7 }`, then the stream closes.
-- SS3: hanging supplier deselected → `ended { status: "completed" }`.
+- SS3, I1, I2: default search (all 7), advance 5 s and read 6 results, then advance 1 s → `ended { status: "timedOut", responded: 5, total: 7 }` (the flaky supplier fails), then the stream closes.
+- SS3, I1: hanging supplier deselected → `ended { status: "completed", responded: 5, total: 6 }`.
 - SS4: flaky supplier fails → `supplier-failed` event, the others still send `quote`.
 - SS5, I7: abort the request mid-stream, await the recorder decorator → the search row is `Cancelled`.
 - SC6: every event carries the `searchId` the client sent.

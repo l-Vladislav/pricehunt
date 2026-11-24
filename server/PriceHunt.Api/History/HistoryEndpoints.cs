@@ -20,6 +20,7 @@ public static class HistoryEndpoints
             from r in db.SupplierResponses
             join s in db.Searches on r.SearchId equals s.Id
             join sup in db.Suppliers on r.SupplierId equals sup.Id
+            where r.PriceMinor != null // I5: failures are stored, not shown
             select new { Response = r, Search = s, SupplierName = sup.Name };
 
         if (query.StartDate is { } start)
@@ -44,9 +45,7 @@ public static class HistoryEndpoints
                 : rows.OrderBy(x => EF.Functions.Collate(x.Search.FromLocation, "NOCASE"))
                     .ThenBy(x => EF.Functions.Collate(x.Search.ToLocation, "NOCASE")),
             "supplier" => desc ? rows.OrderByDescending(x => x.SupplierName) : rows.OrderBy(x => x.SupplierName),
-            "price" => desc
-                ? rows.OrderBy(x => x.Response.PriceMinor == null).ThenByDescending(x => x.Response.PriceMinor)
-                : rows.OrderBy(x => x.Response.PriceMinor == null).ThenBy(x => x.Response.PriceMinor),
+            "price" => desc ? rows.OrderByDescending(x => x.Response.PriceMinor) : rows.OrderBy(x => x.Response.PriceMinor),
             "responseTime" => desc ? rows.OrderByDescending(x => x.Response.ResponseTimeMs) : rows.OrderBy(x => x.Response.ResponseTimeMs),
             _ => desc ? rows.OrderByDescending(x => x.Search.CreatedAtUtc) : rows.OrderBy(x => x.Search.CreatedAtUtc),
         };
@@ -62,7 +61,7 @@ public static class HistoryEndpoints
                 x.Search.FromLocation,
                 x.Search.ToLocation,
                 x.SupplierName,
-                x.Response.PriceMinor / 100m,
+                x.Response.PriceMinor!.Value / 100m,
                 x.Response.ResponseTimeMs))
             .ToListAsync(ct);
 

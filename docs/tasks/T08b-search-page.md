@@ -17,7 +17,7 @@ The `SearchPage` component: the form, the live result list and the progress line
 - Each row shows supplier name (from `started`), price in USD and response time. Rows are rendered with
   `@for (r of results(); track r.supplierId)`, which T09 relies on.
 - While the search runs, a skeleton row stands in for each supplier that hasn't answered yet:
-  `total - responded` rows below the results. They go away when the search ends. This is the loading state, not a new feature.
+  `pending` (T08a) rows below the results. They go away when the search ends. This is the loading state, not a new feature.
   The `.skeleton-row` class is global CSS (fixed row height, shimmer, no animation under `prefers-reduced-motion`); T10b reuses it.
 - Progress text: "N of M suppliers responded" while running. After `ended` it becomes "Completed: N of M suppliers responded"
   or "Timed out: N of M suppliers responded". Before `started` arrives there is no progress line. An error shows `errorMessage`.
@@ -28,11 +28,11 @@ The `SearchPage` component: the form, the live result list and the progress line
 - SC1: submitting starts a search with the form values; a date picked as 23 Nov is sent as `"fromDate":"2026-11-23"`.
 - SC2: rows appear as events arrive, in price order.
 - SC4: after a re-order, each supplier's row is the same DOM node as before (`track` reuses nodes; T09 relies on it).
-- SC5: no progress line before `started`; then "2 of 7 suppliers responded"; after `ended` "Timed out: 6 of 7 suppliers responded"
-  (and "Completed: 7 of 7 suppliers responded" in a second case).
+- SC5: no progress line before `started`; then "1 of 7 suppliers responded" after a quote and a failure (I1); after `ended` "Timed out: 5 of 7 suppliers responded"
+  (and "Completed: 6 of 7 suppliers responded" in a second case).
 - SC6: submit, push A's `started`, click the Search button again (it is enabled) → the fake stream client got a second call and A's Subject was unsubscribed.
 - The supplier list request fails (`HttpTestingController` error) → "Server not reachable" is shown.
-- SC5: while running, the number of skeleton rows is `total - responded`; after `ended` there are none.
+- SC5: while running, the number of skeleton rows is `pending`, so a failure also removes one; after `ended` there are none.
 - SC1: the page is the default route.
 - SC1: a blank location and a start date after the end date are sent as entered, so the server's 400 can be shown.
 - SC5: a stream error shows its message instead of the progress line and keeps the results.

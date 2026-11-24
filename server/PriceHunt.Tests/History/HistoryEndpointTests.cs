@@ -121,23 +121,23 @@ public class HistoryEndpointTests
         Assert.Equal(1, page.Total);
     }
 
-    [Theory]
-    [InlineData("asc")]
-    [InlineData("desc")]
-    public async Task I5_FailedRows_HaveANullPrice_AndSortLastByPrice(string sortDir)
+    [Fact]
+    public async Task I5_FailedResponses_AreNotReturned_AndNotCounted()
     {
         await using var factory = new PriceHuntApiFactory();
         var ids = await SeedAsync(factory,
-            Row("failed") with { PriceMinor = null },
+            Row("failed-1") with { PriceMinor = null },
             Row("cheap") with { PriceMinor = 10_025 },
+            Row("failed-2") with { PriceMinor = null },
             Row("dear") with { PriceMinor = 30_000 });
 
-        var page = await GetPageAsync(factory, $"?sortBy=price&sortDir={sortDir}");
+        var first = await GetPageAsync(factory, "?sortBy=price&sortDir=asc&pageSize=1");
+        var second = await GetPageAsync(factory, "?sortBy=price&sortDir=asc&pageSize=1&page=2");
 
-        string[] expected = sortDir == "asc" ? ["cheap", "dear", "failed"] : ["dear", "cheap", "failed"];
-        Assert.Equal(expected.Select(k => ids[k]), page.Ids);
-        Assert.Equal(JsonValueKind.Null, page.Items[2].GetProperty("price").ValueKind);
-        Assert.Equal(100.25m, page.Items.Single(i => i.GetProperty("id").GetInt64() == ids["cheap"]).GetProperty("price").GetDecimal());
+        Assert.Equal([ids["cheap"]], first.Ids);
+        Assert.Equal([ids["dear"]], second.Ids);
+        Assert.Equal((2, 2), (first.Total, second.Total));
+        Assert.Equal(100.25m, first.Items[0].GetProperty("price").GetDecimal());
     }
 
     // A, C and E share the from location, and their id order differs from both directions of the to location.
@@ -149,7 +149,7 @@ public class HistoryEndpointTests
     [InlineData("supplier", "asc", "B,A,D,E,C")]
     [InlineData("supplier", "desc", "C,E,D,A,B")]
     [InlineData("price", "asc", "B,D,A,E,C")]
-    [InlineData("price", "desc", "E,A,D,B,C")]
+    [InlineData("price", "desc", "C,E,A,D,B")]
     [InlineData("responseTime", "asc", "C,A,B,D,E")]
     [InlineData("responseTime", "desc", "E,D,B,A,C")]
     public async Task HS1_SortByEveryColumn_InBothDirections(string sortBy, string sortDir, string expected)
@@ -158,7 +158,7 @@ public class HistoryEndpointTests
         var ids = await SeedAsync(factory,
             new SeedRow("A", Noon.AddHours(-2), "Berlin", "Rome", "harbor", 30_000, 2000),
             new SeedRow("B", Noon, "Amsterdam", "Paris", "comet", 10_000, 3000),
-            new SeedRow("C", Noon.AddHours(-1), "Berlin", "Madrid", "pelican", null, 1000),
+            new SeedRow("C", Noon.AddHours(-1), "Berlin", "Madrid", "pelican", 50_000, 1000),
             new SeedRow("D", Noon.AddHours(-3), "Cairo", "Oslo", "maple", 20_000, 4000),
             new SeedRow("E", Noon.AddHours(-4), "Berlin", "Naples", "nimbus", 40_000, 5000));
 
@@ -294,7 +294,7 @@ public class HistoryEndpointTests
     }
 
     [Fact]
-    public async Task HS1_I5_SearchRunThroughTheStream_AppearsInHistory()
+    public async Task HS1_I5_SearchRunThroughTheStream_AppearsInHistory_WithoutTheFailure()
     {
         await using var factory = new PriceHuntApiFactory();
         using var client = factory.CreateClient();
@@ -309,21 +309,20 @@ public class HistoryEndpointTests
 
         var page = await GetPageAsync(factory, "");
 
-        Assert.Equal(6, page.Total);
+        Assert.Equal(5, page.Total);
         Assert.All(page.Items, i => Assert.Equal(
             ("Berlin", "Paris"), (i.GetProperty("fromLocation").GetString(), i.GetProperty("toLocation").GetString())));
         var prices = page.Items.ToDictionary(
             i => i.GetProperty("supplierName").GetString()!,
-            i => i.GetProperty("price").ValueKind == JsonValueKind.Null ? (decimal?)null : i.GetProperty("price").GetDecimal());
+            i => i.GetProperty("price").GetDecimal());
         Assert.Equal(
-            new Dictionary<string, decimal?>
+            new Dictionary<string, decimal>
             {
                 ["Pelican Parcel"] = 275.00m,
                 ["Comet Cargo"] = 162.50m,
                 ["Maple Freight"] = 387.50m,
                 ["Harbor Hop"] = 443.75m,
                 ["Nimbus Shipping"] = 106.25m,
-                ["Granite Logistics"] = null,
             },
             prices);
     }

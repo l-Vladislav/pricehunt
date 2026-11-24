@@ -11,7 +11,7 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
 - Filters: start and end date (Material datepickers), supplier multi-select (`mat-select multiple`). Suppliers come from `SuppliersApi` (T08a).
   The location filter exists on the server (HS2) but the PDF's history screen asks only for dates and suppliers, so it isn't in the UI.
 - `mat-table` with columns Date, Route ("A → B"), Supplier, Price, Response time. Date is the UTC `date` from the API shown in
-  local time with `DatePipe` (`yyyy-MM-dd HH:mm`). A failed row shows "Failed" in the Price cell (I5).
+  local time with `DatePipe` (`yyyy-MM-dd HH:mm`). Failed responses are not in the table (I5, T06).
 - On open the page loads page 1 with no filters: `page=1&pageSize=20&sortBy=date&sortDir=desc`. T10b keeps this request unchanged.
 - Filters apply on change, only when the filter form is valid. No Apply button. A start date after the end date (form validator,
   mirrors the server's 400) sends nothing and shows "Start date is after end date". The message, like the request, waits for
@@ -42,6 +42,6 @@ A `/history` route with the filters and a table of the first page. Sorting, pagi
 - I4: the bounds are local midnights at a month end, on a clock change day and for a typed time.
 - HC1: a filter change cancels the request before it. Leaving the page cancels its requests.
 - HC2: the table shows the five columns. A filter change replaces the rows.
-- I5: a failed row shows "Failed" in the Price cell.
+- HC2: prices are shown in USD.
 - I4: a row with `date: "2026-11-23T22:30:00Z"` shows the local time of that instant (built from `new Date(...)` getters in the
   test). In CI's `Asia/Jerusalem` that is `2026-11-24 00:30`, so showing UTC fails the test.

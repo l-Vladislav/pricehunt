@@ -58,8 +58,8 @@ export class SearchPage {
 	);
 
 	protected readonly skeletonRows = computed(() => {
-		const pending = this.store.total() - this.store.responded();
-		return this.store.status() === "running" ? Array.from({ length: pending }) : [];
+		const length = this.store.pending();
+		return this.store.status() === "running" ? Array.from({ length }) : [];
 	});
 
 	protected readonly progress = computed(() => {

@@ -128,7 +128,7 @@ public class SearchOrchestratorTests
     }
 
     [Fact]
-    public async Task SS4_OneSupplierThrows_TheOthersStillDeliver_AndAFailureIsEmitted()
+    public async Task SS4_I1_OneSupplierThrows_TheOthersStillDeliver_AndAFailureIsEmitted()
     {
         var suppliers = Suppliers("a", "b");
         var (a, b) = (suppliers[0], suppliers[1]);
@@ -144,11 +144,11 @@ public class SearchOrchestratorTests
         b.Answer(20m);
         Assert.Equal(new QuoteReceived(SearchId, "b", 20m, 2000), await Next<QuoteReceived>(events));
 
-        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+        await AssertEnded(events, SearchStatus.Completed, responded: 1, total: 2);
     }
 
     [Fact]
-    public async Task SS4_ASupplierCancellingOnItsOwn_IsAFailure_NotTheEndOfTheSearch()
+    public async Task SS4_I1_ASupplierCancellingOnItsOwn_IsAFailure_NotTheEndOfTheSearch()
     {
         // E.g. an HTTP client timeout inside the supplier: an OperationCanceledException while the search's token is live.
         var suppliers = Suppliers("a", "b");
@@ -162,7 +162,22 @@ public class SearchOrchestratorTests
         suppliers[1].Answer(20m);
         await Next<QuoteReceived>(events);
 
-        await AssertEnded(events, SearchStatus.Completed, responded: 2, total: 2);
+        await AssertEnded(events, SearchStatus.Completed, responded: 1, total: 2);
+    }
+
+    [Fact]
+    public async Task I1_EverySupplierFails_EndsCompletedWithNoneResponded()
+    {
+        var suppliers = Suppliers("a", "b");
+        await using var events = Start(suppliers);
+        await Next<SearchStarted>(events);
+
+        suppliers[0].Fail(new SupplierUnavailableException("a"));
+        await Next<SupplierFailed>(events);
+        suppliers[1].Fail(new SupplierUnavailableException("b"));
+        await Next<SupplierFailed>(events);
+
+        await AssertEnded(events, SearchStatus.Completed, responded: 0, total: 2);
     }
 
     [Fact]
@@ -182,7 +197,7 @@ public class SearchOrchestratorTests
         await Next<SupplierFailed>(events);
 
         _time.Advance(TimeSpan.FromSeconds(4));
-        await AssertEnded(events, SearchStatus.TimedOut, responded: 2, total: 3);
+        await AssertEnded(events, SearchStatus.TimedOut, responded: 1, total: 3);
         Assert.True(hanging.WasCancelled);
         Assert.Equal(["a", "b"], _recorder.Results.Select(r => r.SupplierId));
     }

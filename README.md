@@ -25,7 +25,7 @@ Tests: `dotnet test --solution server/PriceHunt.sln` in the repo root, `npm test
 
 | If you have | Look at |
 |-------------|---------|
-| 5 minutes | Run it and search with all suppliers: it ends "Timed out: 6 of 7 suppliers responded", because one supplier never answers. Deselect Lantern Express and it ends "Completed". Start a second search while one runs. |
+| 5 minutes | Run it and search with all suppliers: it ends "Timed out: 6 of 7 suppliers responded" because one supplier never answers (5 of 7 when the one that fails 30% of the time fails). Deselect Lantern Express and it ends "Completed". Start a second search while one runs. |
 | 15 minutes | [`SearchOrchestrator.cs`](server/PriceHunt.Api/Search/SearchOrchestrator.cs): the 6 s limit, cancellation and failure isolation in one file. Its tests pin the races at the deadline listed in [T03b](docs/tasks/T03b-orchestrator-cancellation.md). |
 | 30 minutes | One requirement from spec to test, see "One requirement, end to end" below. |
 
@@ -90,7 +90,7 @@ reads it with `fetch` and cancels with `AbortController`.
 | `started` | The search began. Carries the list of selected suppliers. |
 | `quote` | A supplier answered with a price. |
 | `supplier-failed` | A supplier failed. The others go on. |
-| `ended` | The search is over, `completed` or `timedOut`, with the number of suppliers that responded. |
+| `ended` | The search is over, `completed` or `timedOut`, with the number of suppliers that gave a price. |
 
 Why this way:
 - Data flows in one direction only, so plain HTTP is enough.
@@ -148,7 +148,7 @@ erDiagram
 
 - `Searches` has one row per search. Its status is `Running` until the search ends.
 - `SearchSuppliers` lists the suppliers the user selected. `Suppliers` is seeded with the seven.
-- `SupplierResponses` has one row per answer, failures included. The history reads this table.
+- `SupplierResponses` has one row per answer, failures included. The history reads this table and leaves out the failures.
 
 The diagram shows logical types: SQLite stores guids, dates and times as text. Prices are integer cents, so they are exact and sort
 as plain integers. Times are UTC `DateTime`, because EF Core's SQLite provider can't sort by `DateTimeOffset`.
@@ -159,11 +159,11 @@ as plain integers. Times are UTC `DateTime`, because EF Core's SQLite provider c
 
 | # | Question | Decision |
 |---|----------|----------|
-| I1 | What counts as "responded"? | A price or a failure. The user wants to know how many suppliers are done. |
-| I2 | Every search with all seven suppliers ends "Timed out". Is that a bug? | No. One supplier never responds, so `Completed` is possible only without it. |
+| I1 | What counts as "responded"? | Only a price. A failure doesn't count, so a search can end "Completed: 5 of 6". If every supplier fails, the list stays empty. |
+| I2 | Every search with all seven suppliers ends "Timed out". Is that a bug? | No. One supplier never responds, so `Completed` is possible only without it. A failing supplier causes no timeout: without the silent one the search still ends `Completed`, with fewer prices (I1). |
 | I3 | What is stored for a supplier that did not answer in time? | No response row, only that it was asked. An answer still queued at the deadline behind the save of an earlier one is dropped too: not stored, not streamed, not counted. |
 | I4 | Which date does the history filter use? | When the search ran, in the user's local days. |
-| I5 | Are failures shown in the history? | Yes, as "Failed" in the Price column, always last when sorted by price. |
+| I5 | Are failures shown in the history? | No. They are stored, but the history shows only prices. |
 | I6 | What is a location? | Free text, trimmed. The history matches it ignoring case. |
 | I7 | What is stored when the client disconnects? | `Cancelled`, saved with a token that is not the request token, because that one is already cancelled. |
 | I8 | "No special setup" with .NET 10 and Angular 22? | The .NET 10 SDK and Node.js are prerequisites. The run commands install the npm packages and create the database. |
@@ -192,7 +192,7 @@ A server database would not need this, and it works only inside one process.
 
 ## Tests
 
-112 on the server (about 5 s) and 134 on the client (about 6 s). The test code is more than twice the size of the product code.
+112 on the server (about 5 s) and 135 on the client (about 6 s). The test code is more than twice the size of the product code.
 That is on purpose. The agent wrote both the code and the tests, so a green run alone proves little. The tests follow the IDs
 in the spec, and the code was broken on purpose to see them fail.
 
@@ -210,7 +210,6 @@ Client tests drive the events by hand.
 ## What I would do differently
 - Suppliers per route. Real carriers serve some routes and not others.
 - A server database, such as PostgreSQL, for real load. The write queue would go away, and several instances could run.
-- Log a supplier's failure and keep its reason. Now a failure is only a null price.
 - Indexes for the location filter, with the `NOCASE` collation, if the history grows.
 - On startup, close the searches a crashed server left as `Running`.
 - A few end-to-end tests in a real browser. The client tests run in jsdom, which has no layout.

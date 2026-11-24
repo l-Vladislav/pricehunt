@@ -6,7 +6,7 @@ public class SupplierResponse
     public Guid SearchId { get; set; }
     public required string SupplierId { get; set; }
 
-    /// <summary>USD cents. Null means the supplier failed (I5).</summary>
+    /// <summary>USD cents. Null means the supplier failed (P2).</summary>
     public long? PriceMinor { get; set; }
 
     public long ResponseTimeMs { get; set; }

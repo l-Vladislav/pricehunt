@@ -58,10 +58,15 @@ public sealed class SearchOrchestrator(IEnumerable<ISupplier> suppliers, ISearch
 
                 var result = await results.Current;
                 await recorder.RecordAsync(request.SearchId, result, CancellationToken.None);
-                responded++;
-                yield return result.Price is { } price
-                    ? new QuoteReceived(request.SearchId, result.SupplierId, price, result.ResponseTimeMs)
-                    : new SupplierFailed(request.SearchId, result.SupplierId, result.ResponseTimeMs);
+                if (result.Price is { } price)
+                {
+                    responded++; // I1: only a price counts
+                    yield return new QuoteReceived(request.SearchId, result.SupplierId, price, result.ResponseTimeMs);
+                }
+                else
+                {
+                    yield return new SupplierFailed(request.SearchId, result.SupplierId, result.ResponseTimeMs);
+                }
             }
 
             // The loop ends without looking at the token after the last task, so a caller that left during the
