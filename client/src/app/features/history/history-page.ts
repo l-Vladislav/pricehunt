@@ -97,16 +97,18 @@ export class HistoryPage {
 				takeUntilDestroyed(),
 			)
 			.subscribe((result) => {
-				this.items.set(result?.items ?? []);
+				this.historyFailed.set(result === null);
 				if (result) {
 					this.total.set(result.total);
 					// The total on screen was out of date, e.g. Next was clicked before a filter's response.
+					// Still loading: the rows stay until the last page arrives.
 					if (result.total > 0 && result.items.length === 0) {
 						this.showPage(Math.ceil(result.total / this.pageSize) - 1);
+						return;
 					}
 				}
+				this.items.set(result?.items ?? []);
 				this.loading.set(false);
-				this.historyFailed.set(result === null);
 			});
 	}
 

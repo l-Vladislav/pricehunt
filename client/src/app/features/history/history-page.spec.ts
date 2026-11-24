@@ -649,7 +649,7 @@ describe("HistoryPage", () => {
 	});
 
 	it.each(failures)(
-		"HC2: after %s the message replaces the skeleton, another page can be tried",
+		"HC2: after %s the message replaces the rows, another page can be tried",
 		async (_, fail) => {
 			await openPageOf45();
 			await (await paginator()).goToNextPage();
@@ -687,7 +687,9 @@ describe("HistoryPage", () => {
 
 		const request = historyRequest();
 		expect(params(request, "page")).toEqual([lastPage]);
-		expect(elements(".skeleton-row")).toHaveLength(20);
+		expect(await rangeLabel()).toBe(range);
+		expect((await rows()).map((cells) => cells[2])).toEqual(["Supplier s1"]);
+		expect(elements(".skeleton-row")).toEqual([]);
 		expect(emptyMessages()).toEqual([]);
 		await respondWithTotal(request, total, item);
 		expect(await rangeLabel()).toBe(range);
@@ -703,6 +705,7 @@ describe("HistoryPage", () => {
 
 		await toggleSupplier("Supplier s1");
 		expect(emptyMessages()).toEqual([]);
+		expect(elements(".skeleton-row")).toHaveLength(20);
 	});
 
 	it("I5: a failed row shows Failed as its price", async () => {
