@@ -17,7 +17,7 @@ Sorting and paging run on the server (T06), so the table only has to show a page
 Use `@angular/material` and `@angular/cdk` (same major version as Angular) for form fields, datepicker, select, checkboxes, buttons, table, sort and paginator.
 Write by hand what Material doesn't have:
 - FLIP re-ordering of the result list (T09).
-- Skeleton rows in plain CSS: on the search page for suppliers that haven't answered yet, and in the history table while a page loads.
+- Skeleton rows in plain CSS: on the search page for suppliers that haven't answered yet, and in the history table while a page loads and there are no rows to keep.
   They are the form of the loading states the plan already has, not a new feature.
 
 ## Consequences
