@@ -66,7 +66,9 @@ export class SearchStore {
 
 	search(request: Omit<SearchRequest, "searchId">): void {
 		const searchId = crypto.randomUUID();
-		this.state.set({ ...initialState, searchId, status: "running" });
+		// Not left at 0 until "started": the progress and the list would collapse for a moment (SC4).
+		const total = request.supplierIds?.length ?? 0;
+		this.state.set({ ...initialState, searchId, total, status: "running" });
 		this.requests.next({ ...request, searchId });
 	}
 
