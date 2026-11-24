@@ -166,3 +166,4 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T11](tasks/T11-readme-release.md) | README, clean-clone verification | SS6, D1, D2, D4 | [~] |
 | [T12a](tasks/T12a-supplier-select.md) | Search page: supplier multi-select | SC1 | [x] |
 | [T12b](tasks/T12b-count-prices.md) | Count and show only prices | SC5, HS1, HC2, I1, I5 | [x] |
+| [T12c](tasks/T12c-search-progress.md) | Search page: progress bar and elapsed time | SC2, SC5, I1 | [~] |
