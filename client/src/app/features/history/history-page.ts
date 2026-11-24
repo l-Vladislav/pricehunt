@@ -87,10 +87,7 @@ export class HistoryPage {
 
 		toObservable(this.view)
 			.pipe(
-				tap(() => {
-					this.loading.set(true);
-					this.items.set([]);
-				}),
+				tap(() => this.loading.set(true)),
 				switchMap((view) =>
 					// Caught here, not on the outer stream: that would end it and later changes would do nothing.
 					defer(() => this.historyApi.getHistory(this.query(view))).pipe(
@@ -100,8 +97,8 @@ export class HistoryPage {
 				takeUntilDestroyed(),
 			)
 			.subscribe((result) => {
+				this.items.set(result?.items ?? []);
 				if (result) {
-					this.items.set(result.items);
 					this.total.set(result.total);
 					// The total on screen was out of date, e.g. Next was clicked before a filter's response.
 					if (result.total > 0 && result.items.length === 0) {
