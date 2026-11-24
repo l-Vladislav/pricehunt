@@ -501,7 +501,8 @@ describe("SearchPage", () => {
 		await push(started(id));
 		expect(elements(".responded[role=status], .final-state[role=status]")).toHaveLength(2);
 		expect(elements(".elapsed[role=timer]")).toHaveLength(1);
-		expect(elements("[role=status] .elapsed")).toHaveLength(0);
+		expect(elements("[role=status] .elapsed, .elapsed[aria-live]")).toHaveLength(0);
+		expect(elements("mat-progress-bar[aria-label='Suppliers responded']")).toHaveLength(1);
 		const [finalState] = elements(".final-state");
 
 		// A live region is announced only if it was on the page before its text changed.
@@ -560,6 +561,16 @@ describe("SearchPage", () => {
 			expect(vi.getTimerCount()).toBe(1);
 
 			await tickAt(4500);
+			expect(texts(".elapsed")).toEqual(["0.5 s"]);
+		});
+
+		it("SC5: counts from the click on Search, not from started", async () => {
+			await startSearch();
+
+			const b = await submit();
+			await tickAt(1500);
+			await b.push(started(b.id));
+
 			expect(texts(".elapsed")).toEqual(["0.5 s"]);
 		});
 
