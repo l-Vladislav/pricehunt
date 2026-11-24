@@ -8,7 +8,10 @@
 4. Design decisions and trade-offs, including the interpretations table (I1–I8) from spec.md and a summary of ADR-0002 (Material, hand-written FLIP and skeletons). Also state the known limits:
    a search stays `Running` if the server dies mid-search;
    two requests reusing one `searchId` at the same moment fail on the primary key instead of a 400;
-   a timeout that fires while the last result is being saved ends `Completed`, because every result arrived in time.
+   a timeout that fires while the last result is being saved ends `Completed`, because every result arrived in time;
+   the location match in the history ignores case for ASCII letters only (T06);
+   the first search after the API starts can end a few tenths of a second late;
+   a date typed as `2026-11-23` is read as UTC, so west of UTC it becomes the previous day.
    Explain the SQLite write gate (`SemaphoreSlim`) as a SQLite-specific choice with the spike numbers from plan.md:
    a server database handles concurrent writers itself and would not need it, and the gate works only inside one process.
 5. What I would do differently.

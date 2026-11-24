@@ -10,7 +10,7 @@ Data flows only from server to client once the search has started.
 ## Options considered
 | Option | Pros | Cons |
 |--------|------|------|
-| **SSE format over `fetch` POST** (chosen) | Plain HTTP. Native .NET 10 `TypedResults.ServerSentEvents`. POST body for parameters. Abort → `HttpContext.RequestAborted` with no extra protocol. Easy to test with `HttpClient`. | Needs a ~40-line client-side SSE parser. |
+| **SSE format over `fetch` POST** (chosen) | Plain HTTP. Native .NET 10 `TypedResults.ServerSentEvents`. POST body for parameters. Abort → `HttpContext.RequestAborted` with no extra protocol. Easy to test with `HttpClient`. | Needs a small client-side SSE parser. |
 | `EventSource` (classic SSE) | Built-in browser API. | GET only, so parameters go in the query string. Reconnects by itself when the stream closes, which would silently start a new search. |
 | WebSockets | Full duplex | Must hand-roll framing, close handling and cancellation. Overkill for one-way data. |
 

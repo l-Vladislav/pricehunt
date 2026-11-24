@@ -17,6 +17,7 @@ dotnet run --project server/PriceHunt.Api
 npm start --prefix client
 ```
 
+Start the API first. If the page was opened before the API was up, reload it.
 Ports 5080 and 4142 must be free. The API accepts browser requests only from `http://localhost:4142`.
 
 Tests: `dotnet test --solution server/PriceHunt.sln` in the repo root, `npm test -- --watch=false` in `client/`.
@@ -59,7 +60,7 @@ flowchart TB
 | [plan.md](docs/plan.md), [adr/](docs/adr/) | Architecture, streaming contract, concurrency model. The risky parts were built first in throwaway spikes. |
 | [tasks/](docs/tasks/) | One task is one session, one branch and one PR. A task lists its requirements, design and tests. |
 | Failing tests first | The agent writes the tests from the task file and runs them before the code. The few that already pass are checked by breaking the code (next row). |
-| Breaking the code on purpose | A passing test proves nothing if it can't fail. About 450 breaks are counted in [ai-usage.md](docs/ai-usage.md). A break that no test caught led to a new or a stricter test, or is listed in the PR with the reason. |
+| Breaking the code on purpose | A passing test proves nothing if it can't fail. About 590 breaks are counted in [ai-usage.md](docs/ai-usage.md). A break that no test caught led to a new or a stricter test, or is listed in the PR with the reason. |
 | Reviewer agent | A second agent with no knowledge of the chat compares the diff with the spec and the task. |
 | [AGENTS.md](AGENTS.md), [.claude/](.claude/) | The rules, skills and permissions the agent works under. The settings deny the usual commands for pushing to `main`, force-pushing and merging. Every change after the initial commit came through a PR. |
 
@@ -188,6 +189,9 @@ A server database would not need this, and it works only inside one process.
 - If the server dies during a search, its status stays `Running`.
 - Two requests that use one `searchId` at the same moment: the second one fails on the primary key instead of getting a 400.
 - A timeout that fires while the last result is being saved ends as `Completed`, because every result arrived in time.
+- The first search after the API starts can end a few tenths of a second late. The 6 s run from the start of the search itself,
+  and the first request spends extra time before that.
+- A date typed as `2026-11-23` is read as UTC, so west of UTC it becomes the previous day. The calendar and `11/23/2026` work.
 - The location match in the history ignores case for ASCII letters only (SQLite's `NOCASE`).
 
 ## Tests
@@ -223,6 +227,6 @@ Tool: Claude Code with the Claude Opus 5.5 model, in the terminal and in VS Code
 | Planning | Drafted the spec, plan, tasks and agent rules from my breakdown of the PDF. Wrote the CI workflow and the PR template. Compared UI options. Built the spikes. | Chose the architecture, the transport and the answers to the ambiguous points. |
 | Code and tests | Wrote them, one task at a time, failing tests first. | Approved the steps, for some tasks in advance, and decided the open cases. |
 | Checking | Broke the code on purpose, checked pages in Chrome, reviewed diffs with a second agent. | Reviewed and merged the PRs. |
-| Documentation | Drafted this README, ADR-0002 and the PR descriptions. | Edited the docs and confirmed the first-person parts. |
+| Documentation | Drafted this README, ADR-0002 and the PR descriptions, and edited the other docs. | Edited the docs and confirmed the first-person parts. |
 
 [docs/ai-usage.md](docs/ai-usage.md) has a row per task.
