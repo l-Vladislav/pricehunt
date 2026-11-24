@@ -165,11 +165,13 @@ as plain integers. Times are UTC `DateTime`, because EF Core's SQLite provider c
 | I3 | What is stored for a supplier that did not answer in time? | No response row, only that it was asked. An answer still queued at the deadline behind the save of an earlier one is dropped too: not stored, not streamed, not counted. |
 | I4 | Which date does the history filter use? | When the search ran, in the user's local days. |
 | I5 | Are failures shown in the history? | No. They are stored, but the history shows only prices. |
-| I6 | What is a location? | Free text, trimmed. The history matches it ignoring case. |
+| I6 | What is a location? | The API accepts free text and trims it; history matches it ignoring case. The search form adds location and date validation described below. |
 | I7 | What is stored when the client disconnects? | `Cancelled`, saved with a token that is not the request token, because that one is already cancelled. |
 | I8 | "No special setup" with .NET 10 and Angular 22? | The .NET 10 SDK and Node.js are prerequisites. The run commands install the npm packages and create the database. |
 
 The location filter is in the history API only (`fromLocation`, `toLocation`). The assignment lists it under the server and not among the screen's filters.
+
+The search form requires locations to contain a letter and allows letters, digits, whitespace, periods, commas, apostrophes and hyphens. It rejects identical locations ignoring case. The from date must be today or later; the to date must be tomorrow or later. These additional rules are enforced by the client; the API still accepts free-text locations.
 
 The full reasons and edge cases are in [spec.md](docs/spec.md#2-interpretations-of-ambiguous-points).
 
@@ -196,7 +198,7 @@ A server database would not need this, and it works only inside one process.
 
 ## Tests
 
-112 on the server (about 5 s) and 158 on the client (about 6 s). The test code is more than twice the size of the product code.
+112 on the server (about 5 s) and 163 on the client (about 6 s). The test code is more than twice the size of the product code.
 That is on purpose. The agent wrote both the code and the tests, so a green run alone proves little. The tests follow the IDs
 in the spec, and the code was broken on purpose to see them fail.
 
