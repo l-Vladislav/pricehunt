@@ -40,8 +40,19 @@
 		<button matButton="filled" type="submit" [disabled]="!canSearch()">Search</button>
 	</form>
 
-	@if (progress(); as text) {
-		<p class="progress" role="status">{{ text }}</p>
+	@if (showProgress()) {
+		<div class="progress">
+			<span class="responded" role="status">
+				{{ store.responded() }} of {{ store.total() }} suppliers responded
+			</span>
+			<span>
+				@if (store.status() === "running") {
+					<span class="elapsed" role="timer">{{ elapsedSeconds() | number: "1.1-1" }} s</span>
+				}
+				<span class="final-state" role="status">{{ finalState() }}</span>
+			</span>
+		</div>
+		<mat-progress-bar [value]="progressPercent()" aria-label="Suppliers responded" />
 	}
 	@if (store.errorMessage(); as errorMessage) {
 		<p class="error" role="alert">{{ errorMessage }}</p>
@@ -52,7 +63,6 @@
 			<li class="result-row" [appAnimateMove]="$index">
 				<span class="name">{{ supplierName(r.supplierId) }}</span>
 				<span class="price">{{ r.price | currency: "USD" }}</span>
-				<span class="response-time">{{ r.responseTimeMs }} ms</span>
 			</li>
 		}
 		@for (row of skeletonRows(); track $index) {
