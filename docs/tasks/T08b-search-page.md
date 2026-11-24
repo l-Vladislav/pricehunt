@@ -8,9 +8,9 @@ The `SearchPage` component: the form, the live result list and the progress line
 - `SearchPage` is the default route (`''`), lazy-loaded: with Material in the initial bundle the build exceeds its 500 kB budget.
 - It provides `SearchStore` (T08a), so leaving the page aborts the search (SS5).
 - Form: reactive forms with `Validators.required` on the four fields, built from Material form fields, two datepickers
-  and a checkbox per supplier (ADR-0002). Suppliers come from `SuppliersApi`, all checked by default.
-  At least one supplier must stay checked: the API treats an empty list as "all", which is not what the user chose.
-  If the supplier list fails to load, the form shows "Server not reachable" in place of the checkboxes.
+  and a supplier multi-select (T12a). Suppliers come from `SuppliersApi`, all selected by default.
+  At least one supplier must stay selected: the API treats an empty list as "all", which is not what the user chose.
+  If the supplier list fails to load, the form shows "Server not reachable" below the fields.
 - The other server rules (T05b: whitespace-only location, `fromDate > toDate`) are not repeated on the client. Their 400 is shown
   as `errorMessage` (T07).
 - Search stays enabled while a search runs: submitting again starts a new search and cancels the old one (SC6).
@@ -23,7 +23,7 @@ The `SearchPage` component: the form, the live result list and the progress line
   or "Timed out: N of M suppliers responded". Before `started` arrives there is no progress line. An error shows `errorMessage`.
 
 ## Tests (Vitest, TestBed, `SearchStore` with the fake stream client from T08a)
-- SC1: the form shows from/to location, from/to date and every supplier checked. Unchecking all of them disables Search.
+- SC1: the form shows from/to location, from/to date and every supplier selected. Deselecting all of them disables Search.
 - SC1: an empty location or date disables Search.
 - SC1: submitting starts a search with the form values; a date picked as 23 Nov is sent as `"fromDate":"2026-11-23"`.
 - SC2: rows appear as events arrive, in price order.

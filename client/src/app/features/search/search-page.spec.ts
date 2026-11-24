@@ -8,13 +8,13 @@ import {
 import { ErrorHandler } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonHarness } from "@angular/material/button/testing";
-import { MatCheckboxHarness } from "@angular/material/checkbox/testing";
 import {
 	MatDatepickerInputHarness,
 	MatDatepickerToggleHarness,
 } from "@angular/material/datepicker/testing";
 import { MatFormFieldHarness } from "@angular/material/form-field/testing";
 import { MatInputHarness } from "@angular/material/input/testing";
+import { MatSelectHarness } from "@angular/material/select/testing";
 import { provideRouter } from "@angular/router";
 import { RouterTestingHarness } from "@angular/router/testing";
 import { Subject } from "rxjs";
@@ -111,6 +111,14 @@ describe("SearchPage", () => {
 		await pickDay("To date", "30");
 	}
 
+	async function supplierSelect(): Promise<MatSelectHarness> {
+		const select = await (await formField("Suppliers")).getControl(MatSelectHarness);
+		if (!select) {
+			throw new Error("No select in Suppliers");
+		}
+		return select;
+	}
+
 	function searchButton(): Promise<MatButtonHarness> {
 		return loader.getHarness(MatButtonHarness.with({ text: "Search" }));
 	}
@@ -151,7 +159,7 @@ describe("SearchPage", () => {
 		expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(SearchPage);
 	});
 
-	it("SC1: shows the locations, the dates and every supplier checked", async () => {
+	it("SC1: shows the locations, the dates and every supplier selected", async () => {
 		await openPage();
 
 		for (const label of ["From location", "To location"]) {
@@ -160,26 +168,31 @@ describe("SearchPage", () => {
 		for (const label of ["From date", "To date"]) {
 			expect(await (await dateInput(label)).getValue()).toBe("");
 		}
-		const checkboxes = await loader.getAllHarnesses(MatCheckboxHarness);
+		const select = await supplierSelect();
+		expect(await select.isMultiple()).toBe(true);
+		await select.open();
+		const options = await select.getOptions();
 		const shown = await Promise.all(
-			checkboxes.map(async (box) => [await box.getLabelText(), await box.isChecked()]),
+			options.map(async (option) => [await option.getText(), await option.isSelected()]),
 		);
 		expect(shown).toEqual(suppliers.map(({ name }) => [name, true]));
 	});
 
-	it("SC1: unchecking every supplier disables Search, one is enough to enable it", async () => {
+	it("SC1: deselecting every supplier disables Search, one is enough to enable it", async () => {
 		await openPage();
 		await fillForm();
-		const checkboxes = await loader.getAllHarnesses(MatCheckboxHarness);
-		expect(checkboxes).toHaveLength(7);
+		const select = await supplierSelect();
+		await select.open();
+		const options = await select.getOptions();
+		expect(options).toHaveLength(7);
 
-		for (const checkbox of checkboxes) {
+		for (const option of options) {
 			expect(await (await searchButton()).isDisabled()).toBe(false);
-			await checkbox.uncheck();
+			await option.click();
 		}
 		expect(await (await searchButton()).isDisabled()).toBe(true);
 
-		await checkboxes[3].check();
+		await options[3].click();
 		expect(await (await searchButton()).isDisabled()).toBe(false);
 	});
 
@@ -203,8 +216,9 @@ describe("SearchPage", () => {
 	it("SC1: submitting starts a search with the form values", async () => {
 		await openPage();
 		await fillForm();
-		const unchecked = MatCheckboxHarness.with({ label: "Supplier s2" });
-		await (await loader.getHarness(unchecked)).uncheck();
+		const select = await supplierSelect();
+		await select.open();
+		await select.clickOptions({ text: "Supplier s2" });
 
 		const { id } = await submit();
 
@@ -218,6 +232,15 @@ describe("SearchPage", () => {
 				supplierIds: ["s1", "s3", "s4", "s5", "s6", "s7"],
 			},
 		]);
+	});
+
+	it("SC1: the default selection is sent as the ids of every supplier", async () => {
+		await openPage();
+		await fillForm();
+
+		await submit();
+
+		expect(client.calls[0].request.supplierIds).toEqual(ids);
 	});
 
 	it("SC1: leaves the blank location and date order rules to the server", async () => {
@@ -530,7 +553,7 @@ describe("SearchPage", () => {
 		await fixture.whenStable();
 
 		expect(texts(".error")).toEqual(["Server not reachable"]);
-		expect(await loader.getAllHarnesses(MatCheckboxHarness)).toHaveLength(0);
+		expect(await (await supplierSelect()).isEmpty()).toBe(true);
 		await fillForm();
 		expect(await (await searchButton()).isDisabled()).toBe(true);
 	});
