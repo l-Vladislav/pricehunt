@@ -1,8 +1,16 @@
 import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed, toObservable, toSignal } from "@angular/core/rxjs-interop";
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from "@angular/forms";
+import {
+	AbstractControl,
+	FormControl,
+	FormGroup,
+	ReactiveFormsModule,
+	ValidationErrors,
+	Validators,
+} from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
+import { DateAdapter } from "@angular/material/core";
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
@@ -16,6 +24,9 @@ import { AnimateMove } from "./animate-move";
 import { SearchStore } from "./search-store";
 
 const tickMs = 100;
+
+// Words of letters, or letters with digits, and the punctuation of place names. At least one letter.
+const locationPattern = /^(?=.*\p{L})[\p{L}\p{M}\p{N}\s.,'’-]+$/u;
 
 @Component({
 	selector: "app-search-page",
@@ -43,21 +54,33 @@ export class SearchPage {
 	protected readonly suppliers = signal<Supplier[]>([]);
 	protected readonly suppliersFailed = signal(false);
 
-	protected readonly form = new FormGroup({
-		fromLocation: new FormControl("", { nonNullable: true, validators: Validators.required }),
-		toLocation: new FormControl("", { nonNullable: true, validators: Validators.required }),
-		fromDate: new FormControl<Date | null>(null, Validators.required),
-		toDate: new FormControl<Date | null>(null, Validators.required),
-		// The API treats an empty list as "all", so at least one supplier must stay selected.
-		supplierIds: new FormControl<string[]>([], {
-			nonNullable: true,
-			validators: Validators.required,
-		}),
-	});
+	private readonly dateAdapter = inject<DateAdapter<Date>>(DateAdapter);
+	protected readonly today = this.dateAdapter.today();
+	protected readonly tomorrow = this.dateAdapter.addCalendarDays(this.today, 1);
+
+	protected readonly form = new FormGroup(
+		{
+			fromLocation: locationControl(),
+			toLocation: locationControl(),
+			fromDate: new FormControl<Date | null>(null, Validators.required),
+			toDate: new FormControl<Date | null>(null, Validators.required),
+			// The API treats an empty list as "all", so at least one supplier must stay selected.
+			supplierIds: new FormControl<string[]>([], {
+				nonNullable: true,
+				validators: Validators.required,
+			}),
+		},
+		differentLocations,
+	);
 	private readonly formStatus = toSignal(this.form.statusChanges, {
 		initialValue: this.form.status,
 	});
 	protected readonly canSearch = computed(() => this.formStatus() === "VALID");
+
+	protected readonly sameLocations = toSignal(
+		this.form.valueChanges.pipe(map(() => this.form.hasError("sameLocations"))),
+		{ initialValue: false },
+	);
 
 	private readonly supplierNames = computed(
 		() => new Map(this.store.suppliers().map(({ id, name }) => [id, name])),
@@ -132,6 +155,20 @@ export class SearchPage {
 		this.suppliers.set(suppliers);
 		this.selectAllSuppliers();
 	}
+}
+
+function locationControl() {
+	return new FormControl("", {
+		nonNullable: true,
+		validators: [Validators.required, Validators.pattern(locationPattern)],
+	});
+}
+
+function differentLocations(form: AbstractControl): ValidationErrors | null {
+	const [from, to] = ["fromLocation", "toLocation"].map((name) =>
+		form.get(name)?.value.trim().toLowerCase(),
+	);
+	return from && from === to ? { sameLocations: true } : null;
 }
 
 // Reads the clock instead of counting ticks: a background tab delays them.

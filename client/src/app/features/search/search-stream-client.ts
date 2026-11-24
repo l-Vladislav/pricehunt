@@ -58,7 +58,7 @@ export class SearchStreamClient {
 				signal,
 			});
 		} catch {
-			throw new Error("Server not reachable");
+			throw new Error("We're having technical issues. Please try again later.");
 		}
 	}
 }
