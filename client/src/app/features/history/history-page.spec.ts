@@ -6,6 +6,7 @@ import {
 	TestRequest,
 } from "@angular/common/http/testing";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { MatButtonHarness } from "@angular/material/button/testing";
 import {
 	MatDatepickerInputHarness,
 	MatDatepickerToggleHarness,
@@ -135,7 +136,7 @@ describe("HistoryPage", () => {
 	}
 
 	function params({ request }: TestRequest, ...names: string[]): (string | null)[] {
-		return names.map((name) => request.params.get(name));
+		return names.map((name) => request.params.getAll(name)?.join() ?? null);
 	}
 
 	function emptyMessages(): HTMLElement[] {
@@ -177,6 +178,23 @@ describe("HistoryPage", () => {
 		const select = await supplierSelect();
 		await select.open();
 		await (await select.getOptions({ text: name }))[0].click();
+		await select.close();
+	}
+
+	async function clickClear(): Promise<void> {
+		const button = await loader.getHarness(MatButtonHarness.with({ text: "Clear" }));
+		await button.click();
+		expect(await button.isDisabled()).toBe(false);
+	}
+
+	async function expectDefaultFilters(): Promise<void> {
+		expect(await (await dateInput("Start date")).getValue()).toBe("");
+		expect(await (await dateInput("End date")).getValue()).toBe("");
+		expect(await (await supplierSelect()).getValueText()).toBe("All (3)");
+	}
+
+	function filterParams(request: TestRequest): (string | null)[] {
+		return params(request, "startDate", "endDate", "supplierIds");
 	}
 
 	function elements(selector: string): HTMLElement[] {
@@ -209,18 +227,20 @@ describe("HistoryPage", () => {
 		expect(TestBed.inject(Router).url).toBe(to);
 	});
 
-	it("HC1: has a start date, an end date and a supplier multi-select, all empty", async () => {
+	it("HC1: has empty start and end dates and a supplier multi-select, all selected", async () => {
 		await openPage();
 
 		expect(await (await dateInput("Start date")).getValue()).toBe("");
 		expect(await (await dateInput("End date")).getValue()).toBe("");
 		const select = await supplierSelect();
 		expect(await select.isMultiple()).toBe(true);
-		expect(await select.isEmpty()).toBe(true);
 		await select.open();
 		const options = await select.getOptions();
-		const names = await Promise.all(options.map((option) => option.getText()));
-		expect(names).toEqual(suppliers.map(({ name }) => name));
+		const shown = await Promise.all(
+			options.map(async (option) => [await option.getText(), await option.isSelected()]),
+		);
+		expect(shown).toEqual(suppliers.map(({ name }) => [name, true]));
+		expect(historyRequests()).toHaveLength(0);
 	});
 
 	it("HC1: opening the page requests the first page without filters", async () => {
@@ -285,9 +305,7 @@ describe("HistoryPage", () => {
 
 	it("HC1: picked suppliers are sent as repeated supplierIds", async () => {
 		await openPage();
-		await toggleSupplier("Supplier s1");
-		await respond(historyRequest());
-		await toggleSupplier("Supplier s3");
+		await toggleSupplier("Supplier s2");
 		const request = historyRequest();
 		expect(request.request.urlWithParams).toContain("supplierIds=s1&supplierIds=s3");
 		await respond(request);
@@ -295,6 +313,84 @@ describe("HistoryPage", () => {
 		await toggleSupplier("Supplier s1");
 
 		expect(historyRequest().request.params.getAll("supplierIds")).toEqual(["s3"]);
+	});
+
+	it("HC1: the suppliers apply once, when the list closes", async () => {
+		await openPage(item);
+		const select = await supplierSelect();
+		await select.open();
+		await select.clickOptions({ text: /s[12]$/ });
+		expect(historyRequests()).toHaveLength(0);
+
+		await select.close();
+
+		expect(filterParams(historyRequest())).toEqual([null, null, "s3"]);
+	});
+
+	it("HC1: a supplier replaced by another one applies", async () => {
+		await openPage(item);
+		await toggleSupplier("Supplier s1");
+		await respond(historyRequest(), item);
+		const select = await supplierSelect();
+		await select.open();
+		await select.clickOptions({ text: /s[12]$/ });
+
+		await select.close();
+
+		expect(filterParams(historyRequest())).toEqual([null, null, "s1,s3"]);
+	});
+
+	it("HC1: closing the list with the same suppliers sends nothing", async () => {
+		await openPage(item);
+		const select = await supplierSelect();
+
+		await select.open();
+		await select.close();
+		expect(historyRequests()).toHaveLength(0);
+
+		await select.open();
+		await select.clickOptions({ text: "Supplier s1" });
+		await select.clickOptions({ text: "Supplier s1" });
+		await select.close();
+		expect(historyRequests()).toHaveLength(0);
+	});
+
+	it("HC1: deselecting every supplier sends nothing until one is selected", async () => {
+		await openPage(item);
+		await toggleSupplier("Supplier s1");
+		await respond(historyRequest(), item);
+		await toggleSupplier("Supplier s2");
+		await respond(historyRequest(), item);
+
+		expect(await (await formField("Suppliers")).getTextErrors()).toEqual([]);
+
+		await toggleSupplier("Supplier s3");
+		expect(historyRequests()).toHaveLength(0);
+		expect(await rows()).toHaveLength(1);
+		expect(await (await formField("Suppliers")).getTextErrors()).toEqual([
+			"Select at least one supplier",
+		]);
+
+		await clickHeader("Price");
+		const sorted = historyRequest();
+		expect(filterParams(sorted)).toEqual([null, null, "s3"]);
+		await respond(sorted, item);
+
+		await toggleSupplier("Supplier s2");
+		expect(filterParams(historyRequest())).toEqual([null, null, "s2"]);
+		expect(await (await formField("Suppliers")).getTextErrors()).toEqual([]);
+	});
+
+	it("HC1: the select shows the names unless every supplier is selected", async () => {
+		await openPage();
+		const select = await supplierSelect();
+		expect(await select.getValueText()).toBe("All (3)");
+
+		await toggleSupplier("Supplier s2");
+		expect(await select.getValueText()).toBe("Supplier s1, Supplier s3");
+
+		await toggleSupplier("Supplier s2");
+		expect(await select.getValueText()).toBe("All (3)");
 	});
 
 	it("HC1: the filters are combined", async () => {
@@ -306,7 +402,7 @@ describe("HistoryPage", () => {
 
 		const { params } = historyRequest().request;
 		expect(params.get("startDate")).toBe(new Date(2026, 10, 23).toISOString());
-		expect(params.getAll("supplierIds")).toEqual(["s2"]);
+		expect(params.getAll("supplierIds")).toEqual(["s1", "s3"]);
 	});
 
 	it("HC1: a typed date applies when the field is left, not per keystroke", async () => {
@@ -332,7 +428,7 @@ describe("HistoryPage", () => {
 			expect(historyRequests()).toHaveLength(0);
 
 			await typeDate(label, "11/23/2026");
-			expect(historyRequest().request.params.getAll("supplierIds")).toEqual(["s1"]);
+			expect(historyRequest().request.params.getAll("supplierIds")).toEqual(["s2", "s3"]);
 		},
 	);
 
@@ -376,6 +472,70 @@ describe("HistoryPage", () => {
 		await typeDate("Start date", "11/23/2026 17:00");
 
 		expect(historyRequests()).toHaveLength(1);
+	});
+
+	it("HC1: Clear restores the default filters, requests page 1 and keeps the sort", async () => {
+		await openPageOf45();
+		await typeDate("Start date", "11/22/2026");
+		await respondWithTotal(historyRequest(), 45, item);
+		await typeDate("End date", "11/23/2026");
+		await respondWithTotal(historyRequest(), 45, item);
+		await toggleSupplier("Supplier s1");
+		await respondWithTotal(historyRequest(), 45, item);
+		await clickHeader("Price");
+		await respondWithTotal(historyRequest(), 45, item);
+		await goToLastOf3Pages();
+
+		await clickClear();
+
+		await expectDefaultFilters();
+		const request = historyRequest();
+		expect(filterParams(request)).toEqual([null, null, "s1,s2,s3"]);
+		expect(params(request, "page", "sortBy", "sortDir")).toEqual(["1", "price", "asc"]);
+		expect(await activeSort()).toEqual(["Price", "asc"]);
+	});
+
+	it.each(["Start date", "End date"])(
+		"HC1: Clear removes a %s that can't be parsed, the next filter change applies",
+		async (label) => {
+			await openPage();
+			await typeDate(label, "abc");
+			expect(historyRequests()).toHaveLength(0);
+
+			await clickClear();
+
+			await expectDefaultFilters();
+			const request = historyRequest();
+			expect(filterParams(request)).toEqual([null, null, "s1,s2,s3"]);
+			await respond(request);
+			await toggleSupplier("Supplier s1");
+			expect(filterParams(historyRequest())).toEqual([null, null, "s2,s3"]);
+		},
+	);
+
+	it("HC1: Clear removes the date order message", async () => {
+		await openPage();
+		await typeDate("End date", "11/23/2026");
+		await respond(historyRequest());
+		await typeDate("Start date", "11/24/2026");
+		expect(errors()).toEqual(["Start date is after end date"]);
+
+		await clickClear();
+
+		expect(errors()).toEqual([]);
+		await expectDefaultFilters();
+		expect(filterParams(historyRequest())).toEqual([null, null, "s1,s2,s3"]);
+	});
+
+	it("HC1: Clear cancels the request before it", async () => {
+		await openPage();
+		await toggleSupplier("Supplier s1");
+		const first = historyRequest();
+
+		await clickClear();
+
+		expect(first.cancelled).toBe(true);
+		expect(historyRequest().cancelled).toBe(false);
 	});
 
 	it("HC1: a filter change cancels the request before it", async () => {
@@ -429,6 +589,14 @@ describe("HistoryPage", () => {
 
 		expect(errors()).toEqual(["Suppliers not found"]);
 		expect(await rows()).toHaveLength(1);
+
+		await typeDate("Start date", "11/23/2026");
+		const filtered = historyRequest();
+		expect(filterParams(filtered)).toEqual([new Date(2026, 10, 23).toISOString(), null, null]);
+		await respond(filtered, item);
+
+		await clickClear();
+		expect(filterParams(historyRequest())).toEqual([null, null, null]);
 	});
 
 	it("HC1: leaving the page cancels its requests", async () => {
@@ -579,7 +747,7 @@ describe("HistoryPage", () => {
 		expect(params(historyRequest(), "sortBy", "sortDir", "supplierIds", "page")).toEqual([
 			"price",
 			"asc",
-			"s1",
+			"s2,s3",
 			"2",
 		]);
 	});
@@ -589,7 +757,7 @@ describe("HistoryPage", () => {
 		["are in the wrong order", "11/24/2026"],
 	])("HC2: while the dates %s, sorting and paging use the last valid filters", async (_, text) => {
 		const names = ["startDate", "endDate", "supplierIds"];
-		const lastValid = [null, new Date(2026, 10, 24).toISOString(), null];
+		const lastValid = [null, new Date(2026, 10, 24).toISOString(), "s1,s2,s3"];
 		await openPageOf45();
 		await typeDate("End date", "11/23/2026");
 		await respondWithTotal(historyRequest(), 45, item);
