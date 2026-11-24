@@ -33,7 +33,7 @@ that TCS itself (see each test for the order), otherwise the `finally` waits for
   `FinishAsync` calls are exactly `[Cancelled]`. No test can see a catch filter without `!ct.IsCancellationRequested`:
   the check after the loop throws again. The filter stays so that the caller's exception is never caught.
 - SS3, I3: the deadline passes while a result is being persisted (the fake recorder advances time inside `RecordAsync`) → that
-  result is still yielded and counted, and `responded` equals the number of `RecordAsync` calls. Two cases:
+  result is still yielded and counted, and `responded` equals the number of `RecordAsync` calls (all of them prices here). Two cases:
   another supplier is still pending → `Ended(TimedOut)`; it was the last result (all other fakes already answered) → `Ended(Completed)`.
 - SS3, I1, I3: a result that completed in time but is queued behind a write of the same search is dropped. Two fakes, A and B. A answers; inside
   A's `RecordAsync` the fake recorder completes B, then advances past the deadline → A is yielded, then `Ended(TimedOut)` with

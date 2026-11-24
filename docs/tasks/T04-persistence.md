@@ -1,5 +1,5 @@
 # T04: Persistence
-**Reqs:** P1, P2, P3 · **Interpretations:** I3, I5, I7
+**Reqs:** P1, P2, P3 · **Interpretations:** I3, I7
 
 ## Goal
 EF Core + SQLite. The schema is created on startup via `Database.Migrate()` (migrations are committed).
@@ -43,7 +43,7 @@ This keeps the T01 smoke test off the real `pricehunt.db` once `Migrate()` runs 
 ## Tests (integration: `SearchOrchestrator` and `EfSearchRecorder` resolved from the factory's services, no HTTP)
 - P3: migrations apply to an empty database and create every table from plan.md.
 - P1, P2, I3: a full search (all 7) persists the search with its parameters and selected suppliers, `Status = TimedOut`, and one response row per supplier that answered (a price, or a null price for the failure). The hanging supplier has no row (I3).
-- P2, I5: the failure row has a null price and a response time.
+- P2: the failure row has a null price and a response time.
 - I7: cancel the caller token mid-search → `Status = Cancelled` (finalize used `CancellationToken.None`), and suppliers still pending have no rows.
 - Times read back from the DB through a new `AppDbContext` from the factory (a tracked entity would skip the converter) equal the
   `FakeTimeProvider` time that was written and have `Kind = Utc`. Checking `Kind` alone

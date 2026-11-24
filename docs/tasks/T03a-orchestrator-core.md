@@ -58,7 +58,8 @@ public interface ISearchRecorder {
 - No token check inside the loop: `MoveNextAsync` already throws once the token fired, and returns `false` after the last task
   (plan.md step 3). The tests below and in T03b pin both behaviours.
 - For each result: persist it (`CancellationToken.None`), then map it to `QuoteReceived` or `SupplierFailed` and yield it.
-  Once persisted, a result is always yielded and counted, so the DB rows always match `ended.responded`.
+  Once persisted, a result is always yielded. Only a price counts toward `responded` (I1), so `ended.responded` always matches
+  the DB rows that have a price.
 - After the loop, write `Completed` and yield `ended`.
 - Pending suppliers are cancelled and produce no event and no record (I3).
 - The final status is written once, with `CancellationToken.None`, before `ended` is yielded.
@@ -91,8 +92,9 @@ A test that checks `ResponseTimeMs` advances exactly to that supplier's completi
 - P2: the stored time is the time of the answer. The fake recorder holds A's `RecordAsync` until the test releases it.
   B answers at 1.2 s while A's write is held, the test advances to 1.5 s and then releases A → B's `RecordAsync` gets
   `ResponseTimeMs = 1200` and `ReceivedAtUtc` = start + 1.2 s, not 1.5 s.
-- SS4: one supplier throws → the others still deliver, and a `SupplierFailed` event is emitted.
-- SS3, I1, I2, I3: hanging supplier + 6 s elapsed → `Ended(TimedOut)` with the results collected so far, `responded` counts quotes and failures,
+- SS4, I1: one supplier throws → the others still deliver, a `SupplierFailed` event is emitted, and `responded` doesn't count it.
+- I1: every supplier throws → `Ended(Completed)` with `responded: 0`.
+- SS3, I1, I2, I3: hanging supplier + 6 s elapsed → `Ended(TimedOut)` with the results collected so far, `responded` counts the quotes only,
   the hanging task observed cancellation, and there is no `RecordAsync` for it.
 - SS3: all suppliers done before 6 s → `Ended(Completed)`.
 - SS1: only the selected suppliers are queried, in catalog order, and a repeated id starts one call; `StartAsync` and

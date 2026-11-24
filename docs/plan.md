@@ -103,8 +103,8 @@ The response is `text/event-stream`. Every payload carries a `searchId`. JSON is
 |-------|------|
 | `started` | `{ searchId, suppliers: [{id, name}] }` |
 | `quote` | `{ searchId, supplierId, price, responseTimeMs }` (price in USD) |
-| `supplier-failed` | `{ searchId, supplierId, responseTimeMs }` |
-| `ended` | `{ searchId, status: "completed" \| "timedOut", responded, total }` |
+| `supplier-failed` | `{ searchId, supplierId, responseTimeMs }` (the client drops a skeleton row) |
+| `ended` | `{ searchId, status: "completed" \| "timedOut", responded, total }` (`responded` counts prices, I1) |
 
 The server never sends `Cancelled`, because the client is gone by then. That status exists only in the DB.
 
@@ -112,20 +112,20 @@ The server never sends `Cancelled`, because the client is gone by then. That sta
 `GET /api/history?startDate&endDate&supplierIds=a&supplierIds=b&fromLocation&toLocation&sortBy&sortDir&page&pageSize`
 returns `{ items: [...], total, page, pageSize }`. `startDate` (inclusive) and `endDate` (exclusive) are UTC instants such as
 `2026-11-22T22:00:00.000Z`: the client sends the local midnight of the first day and of the day after the last day (I4). An item is
-`{ id, date, fromLocation, toLocation, supplierName, price, responseTimeMs }`: `date` is the search timestamp (I4), `price` is USD or `null` for a failure (I5). `sortBy` is one of `date|route|supplier|price|responseTime` (whitelist).
+`{ id, date, fromLocation, toLocation, supplierName, price, responseTimeMs }`: `date` is the search timestamp (I4), `price` is USD. Failed responses are not returned and not counted in `total` (I5). `sortBy` is one of `date|route|supplier|price|responseTime` (whitelist).
 
 ### Data model (SQLite)
 - `Suppliers` (Id PK text, Name). Seeded with `HasData`.
 - `Searches` (Id PK guid, FromLocation, ToLocation, FromDate, ToDate, CreatedAtUtc, Status). Status: `Running` while streaming, then `Completed`/`TimedOut`/`Cancelled`.
 - `SearchSuppliers` (SearchId FK, SupplierId FK, PK both). Records the selected suppliers.
-- `SupplierResponses` (Id PK, SearchId FK, SupplierId FK, PriceMinor? (USD cents, null = the supplier failed, I5), ResponseTimeMs, ReceivedAtUtc).
+- `SupplierResponses` (Id PK, SearchId FK, SupplierId FK, PriceMinor? (USD cents, null = the supplier failed, P2), ResponseTimeMs, ReceivedAtUtc).
   Indexes: EF's default ones on the foreign keys, plus `Searches(CreatedAtUtc)` for the history date filter (I4).
 
 ## Checked by a spike
 Before T01 the risky parts of this plan were built once in a throwaway copy (not committed) with integration tests and a load test.
 Confirmed: the orchestrator design (manual enumeration, `[EnumeratorCancellation]`, the `finally`, late results dropped, `Cancelled`
 written once), SSE items with derived fields and camelCase enums, abort through `TestServer`, built-in validation on records
-and on `[AsParameters]` with `IValidatableObject`, the in-memory SQLite factory, the UTC converter, `HasData`, and null-last price sorting in SQL.
+and on `[AsParameters]` with `IValidatableObject`, the in-memory SQLite factory, the UTC converter, `HasData`, and null-last price sorting in SQL (not needed since T12b).
 The first spike's loop checked the token after each `MoveNextAsync`. The current loop has no such check and relies on how `Task.WhenEach`
 handles cancellation. That was checked later on .NET 10 with a console app: `MoveNextAsync` throws after the token fired while a
 task is not taken yet, even a completed one, and returns `false` after the last task without looking at the token.
@@ -152,7 +152,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T02](tasks/T02-suppliers.md) | Simulated suppliers | S1–S4 | [x] |
 | [T03a](tasks/T03a-orchestrator-core.md) | Search orchestrator: stream, timeout, isolation | SS1–SS4, P2, I1–I3 | [x] |
 | [T03b](tasks/T03b-orchestrator-cancellation.md) | Search orchestrator: cancellation, races at the deadline | SS3, SS5, P1, I1, I3, I7 | [x] |
-| [T04](tasks/T04-persistence.md) | EF Core model, auto-migrate, recording searches and responses | P1–P3, I3, I5, I7 | [x] |
+| [T04](tasks/T04-persistence.md) | EF Core model, auto-migrate, recording searches and responses | P1–P3, I3, I7 | [x] |
 | [T05a](tasks/T05a-search-stream.md) | SSE search endpoint: streaming, timeout, cancellation | SS2–SS5, SC6, I1, I2, I7 | [x] |
 | [T05b](tasks/T05b-search-validation.md) | SSE search endpoint: validation, trimming | SS1, I6 | [x] |
 | [T06](tasks/T06-history-endpoint.md) | History endpoint: filters, sorting, paging | HS1, HS2, I4–I6 | [x] |
@@ -165,3 +165,4 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done. Tasks go in order, one PR
 | [T10b](tasks/T10b-history-table.md) | History page: sorting, paging, skeleton | HC2 | [x] |
 | [T11](tasks/T11-readme-release.md) | README, clean-clone verification | SS6, D1, D2, D4 | [~] |
 | [T12a](tasks/T12a-supplier-select.md) | Search page: supplier multi-select | SC1 | [x] |
+| [T12b](tasks/T12b-count-prices.md) | Count and show only prices | SC5, HS1, HC2, I1, I5 | [x] |

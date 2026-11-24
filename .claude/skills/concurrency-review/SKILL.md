@@ -35,7 +35,7 @@ Read the changed files, then answer **every** item with ✅, ❌ + file:line, or
 - [ ] The client creates `searchId` before the request. Every event, `started` included, is checked against it before it changes state (SC6).
 - [ ] Stream errors and completion leave the UI in a final state, never stuck on "running".
 - [ ] No subscription leaks on component destroy.
-- [ ] Progress counts quotes + failures (I1).
+- [ ] Progress counts only quotes; a failure removes a skeleton row (I1).
 
 ## Proof
 For each ✅ on a behavioural item, name the test that proves it. A ✅ without a test is a ❌.

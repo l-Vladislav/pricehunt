@@ -86,7 +86,7 @@ public class PersistenceTests
     }
 
     [Fact]
-    public async Task P2_I5_Failure_IsStoredWithNullPriceAndItsResponseTime()
+    public async Task P2_Failure_IsStoredWithNullPriceAndItsResponseTime()
     {
         await using var factory = new PriceHuntApiFactory();
 
