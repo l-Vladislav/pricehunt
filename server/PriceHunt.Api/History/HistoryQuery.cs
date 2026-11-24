@@ -23,6 +23,6 @@ public record HistoryQuery(
 }
 
 public record HistoryItem(
-    long Id, DateTime Date, string FromLocation, string ToLocation, string SupplierName, decimal? Price, long ResponseTimeMs);
+    long Id, DateTime Date, string FromLocation, string ToLocation, string SupplierName, decimal Price, long ResponseTimeMs);
 
 public record HistoryPage(IReadOnlyList<HistoryItem> Items, int Total, int Page, int PageSize);

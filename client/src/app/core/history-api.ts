@@ -19,7 +19,7 @@ export interface HistoryItem {
 	fromLocation: string;
 	toLocation: string;
 	supplierName: string;
-	price: number | null;
+	price: number;
 	responseTimeMs: number;
 }
 

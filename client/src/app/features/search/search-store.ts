@@ -11,7 +11,7 @@ interface SearchState {
 	searchId: string | null;
 	suppliers: Supplier[];
 	results: Quote[];
-	responded: number;
+	failed: number;
 	total: number;
 	status: "idle" | "running" | "completed" | "timedOut" | "error";
 	errorMessage: string | null;
@@ -21,7 +21,7 @@ const initialState: SearchState = {
 	searchId: null,
 	suppliers: [],
 	results: [],
-	responded: 0,
+	failed: 0,
 	total: 0,
 	status: "idle",
 	errorMessage: null,
@@ -37,9 +37,9 @@ export class SearchStore {
 	readonly searchId = computed(() => this.state().searchId);
 	readonly suppliers = computed(() => this.state().suppliers);
 	readonly results = computed(() => this.state().results);
-	readonly responded = computed(() => this.state().responded);
+	readonly responded = computed(() => this.results().length);
 	readonly total = computed(() => this.state().total);
-	readonly pending = computed(() => this.total() - this.responded());
+	readonly pending = computed(() => this.total() - this.responded() - this.state().failed);
 	readonly status = computed(() => this.state().status);
 	readonly errorMessage = computed(() => this.state().errorMessage);
 
@@ -87,12 +87,11 @@ export class SearchStore {
 					...state,
 					// A full sort is fine for at most 7 rows, and it is stable: ties keep their arrival order.
 					results: [...state.results, quote].sort((a, b) => a.price - b.price),
-					responded: state.responded + 1,
 				}));
 				break;
 			}
 			case "supplier-failed":
-				this.state.update((state) => ({ ...state, responded: state.responded + 1 }));
+				this.state.update((state) => ({ ...state, failed: state.failed + 1 }));
 				break;
 			case "ended": {
 				const { status } = event.data;
