@@ -1,17 +1,22 @@
 main {
-	max-width: 800px;
+	max-width: 1200px;
 	margin: 0 auto;
 	padding: 16px;
 }
 
 .fields {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	display: flex;
+	flex-wrap: wrap;
 	gap: 0 16px;
+
+	mat-form-field {
+		flex: 1 1 160px;
+	}
 }
 
-.suppliers {
-	grid-column: 1 / -1;
+.buttons {
+	// Centres the 40px buttons on the 56px fields, which also have room for an error below.
+	margin: 8px 0 28px;
 }
 
 .error {
